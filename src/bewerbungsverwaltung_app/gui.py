@@ -18,11 +18,13 @@ class BewerbungsverwaltungApp:
         self.workbook_path = workbook_path
         self.app_dir = workbook_path.parent
         self.repo = ExcelRepository(workbook_path)
+        self.repo.ensure_workbook_health()
         self.lookups: LookupValues = self.repo.load_lookups()
 
         self.root = tk.Tk()
         self.root.title("Bewerbungsverwaltung")
-        self.root.geometry("1250x780")
+        self.root.geometry("1250x860")
+        self.root.minsize(1100, 820)
 
         self.records: list[ApplicationRecord] = []
         self.follow_up_records: list[ApplicationRecord] = []
@@ -41,6 +43,8 @@ class BewerbungsverwaltungApp:
         self.follow_sort_desc = False
         self.archive_sort_column = "status_datum"
         self.archive_sort_desc = True
+        self.status_var = tk.StringVar(value="Bereit")
+        self.reload_button: ttk.Button | None = None
 
         self._build_ui()
         self._reset_form()
@@ -52,6 +56,12 @@ class BewerbungsverwaltungApp:
     def _set_busy_cursor(self, busy: bool) -> None:
         self.root.config(cursor="watch" if busy else "")
         self.root.update_idletasks()
+
+    def _set_refresh_state(self, busy: bool, status_text: str | None = None) -> None:
+        if self.reload_button is not None:
+            self.reload_button.configure(state="disabled" if busy else "normal")
+        self.status_var.set(status_text or ("Daten werden geladen..." if busy else "Bereit"))
+        self._set_busy_cursor(busy)
 
     def _build_ui(self) -> None:
         self._configure_treeview_styles()
@@ -66,7 +76,12 @@ class BewerbungsverwaltungApp:
         ).pack(side="left")
 
         self._build_documentation_buttons(header)
-        ttk.Button(header, text="Daten neu laden", command=self.refresh_data).pack(side="right", padx=4)
+        self.reload_button = ttk.Button(header, text="Daten neu laden", command=self.refresh_data)
+        self.reload_button.pack(side="right", padx=4)
+
+        status_bar = ttk.Frame(self.root, padding=(12, 0, 12, 10))
+        status_bar.pack(fill="x")
+        ttk.Label(status_bar, textvariable=self.status_var, foreground="#666666").pack(anchor="w")
 
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -295,8 +310,25 @@ class BewerbungsverwaltungApp:
         ttk.Button(follow_filter_box, text="Zurücksetzen", command=self._reset_follow_filter, width=12).pack(side="left")
 
         columns = ("id", "unternehmen", "position", "status", "erinnerung", "prioritaet", "schritt")
-        self.follow_tree = ttk.Treeview(self.tab_follow_up, columns=columns, show="headings", height=16, style="Readable.Treeview")
-        self.follow_tree.pack(fill="both", expand=True, pady=(0, 10))
+        follow_tree_frame = ttk.Frame(self.tab_follow_up)
+        follow_tree_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        self.follow_tree = ttk.Treeview(
+            follow_tree_frame,
+            columns=columns,
+            show="headings",
+            height=10,
+            style="Readable.Treeview",
+        )
+        follow_tree_vscroll = ttk.Scrollbar(follow_tree_frame, orient="vertical", command=self.follow_tree.yview)
+        follow_tree_hscroll = ttk.Scrollbar(follow_tree_frame, orient="horizontal", command=self.follow_tree.xview)
+        self.follow_tree.configure(yscrollcommand=follow_tree_vscroll.set, xscrollcommand=follow_tree_hscroll.set)
+
+        self.follow_tree.grid(row=0, column=0, sticky="nsew")
+        follow_tree_vscroll.grid(row=0, column=1, sticky="ns")
+        follow_tree_hscroll.grid(row=1, column=0, sticky="ew")
+        follow_tree_frame.columnconfigure(0, weight=1)
+        follow_tree_frame.rowconfigure(0, weight=1)
         self.follow_tree.bind("<<TreeviewSelect>>", self._on_follow_tree_select)
         self.follow_tree.bind("<Double-1>", self._on_follow_tree_double_click)
 
@@ -432,8 +464,25 @@ class BewerbungsverwaltungApp:
         ttk.Button(archive_filter_box, text="Zurücksetzen", command=self._reset_archive_filter, width=12).pack(side="left")
 
         columns = ("id", "unternehmen", "position", "status", "endergebnis", "status_datum")
-        self.archive_tree = ttk.Treeview(self.tab_archive, columns=columns, show="headings", height=22, style="Readable.Treeview")
-        self.archive_tree.pack(fill="both", expand=True)
+        archive_tree_frame = ttk.Frame(self.tab_archive)
+        archive_tree_frame.pack(fill="both", expand=True)
+
+        self.archive_tree = ttk.Treeview(
+            archive_tree_frame,
+            columns=columns,
+            show="headings",
+            height=10,
+            style="Readable.Treeview",
+        )
+        archive_tree_vscroll = ttk.Scrollbar(archive_tree_frame, orient="vertical", command=self.archive_tree.yview)
+        archive_tree_hscroll = ttk.Scrollbar(archive_tree_frame, orient="horizontal", command=self.archive_tree.xview)
+        self.archive_tree.configure(yscrollcommand=archive_tree_vscroll.set, xscrollcommand=archive_tree_hscroll.set)
+
+        self.archive_tree.grid(row=0, column=0, sticky="nsew")
+        archive_tree_vscroll.grid(row=0, column=1, sticky="ns")
+        archive_tree_hscroll.grid(row=1, column=0, sticky="ew")
+        archive_tree_frame.columnconfigure(0, weight=1)
+        archive_tree_frame.rowconfigure(0, weight=1)
 
         headings = {
             "id": "ID",
@@ -551,15 +600,16 @@ class BewerbungsverwaltungApp:
                 var.set("")
 
     def refresh_data(self) -> None:
-        self._set_busy_cursor(True)
+        self._set_refresh_state(True, "Daten werden geladen...")
         try:
             self.records = self.repo.load_records()
             self.follow_up_records, self.archive_records = self.repo.categorize_records(self.records)
             self._render_follow_up_records()
             self._render_archive_records()
             self._clear_follow_up_form()
+            self.status_var.set(f"{len(self.records)} Einträge geladen")
         finally:
-            self._set_busy_cursor(False)
+            self._set_refresh_state(False, self.status_var.get())
 
     def _render_follow_up_records(self) -> None:
         for item in self.follow_tree.get_children():
