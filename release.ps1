@@ -142,8 +142,87 @@ $pushTagArgs = @('push', 'origin', $ReleaseVersion)
 Write-Host "[Release] Tag mit Versionsinformationen erstellt" -ForegroundColor Green
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
-$releaseArgs = @('release', 'create', $ReleaseVersion, $zipPath, '--title', $ReleaseVersion, '--generate-notes')
+
+# Release-Notes mit Zusammenfassung vorbereiten
+$notesFile = Join-Path $root "release-notes-$ReleaseVersion.tmp"
+$notesContent = @"
+## Zusammenfassung (DE)
+
+Dieses Release beinhaltet:
+
+"@
+
+# Commits analysieren und kategorisieren
+$commitTypes = @{
+    'fix:'       = '🔧 Fehlerbehebungen'
+    'feature:'   = '✨ Neue Features'
+    'release:'   = '📦 Release & Build'
+    'docs:'      = '📚 Dokumentation'
+    'chore:'     = '🔨 Maintenance'
+    'refactor:'  = '♻️ Refactoring'
+    'ci:'        = '🚀 CI/CD'
+}
+
+# Commits seit letztem Tag sammeln
+$previousTag = $(git describe --tags --abbrev=0 2>$null) || "v0.0.0"
+$allCommits = @(git log "$previousTag..HEAD" --oneline 2>$null)
+
+# Commits nach Typ kategorisieren
+$categorized = @{}
+foreach ($commit in $allCommits) {
+    $found = $false
+    foreach ($typeKey in $commitTypes.Keys) {
+        if ($commit -imatch "^[a-f0-9]+ $typeKey") {
+            if (-not $categorized.ContainsKey($typeKey)) {
+                $categorized[$typeKey] = @()
+            }
+            $categorized[$typeKey] += $commit -replace "^[a-f0-9]+ " , ""
+            $found = $true
+            break
+        }
+    }
+    if (-not $found) {
+        if (-not $categorized.ContainsKey('other')) {
+            $categorized['other'] = @()
+        }
+        $categorized['other'] += $commit -replace "^[a-f0-9]+ ", ""
+    }
+}
+
+# Zusammenfassung füllen
+foreach ($typeKey in @('fix:', 'feature:', 'release:', 'docs:', 'chore:', 'refactor:', 'ci:', 'other')) {
+    if ($categorized.ContainsKey($typeKey) -and $categorized[$typeKey].Count -gt 0) {
+        $label = if ($typeKey -eq 'other') { 'Sonstiges' } else { $commitTypes[$typeKey] }
+        $notesContent += "`n- $label`n"
+        foreach ($msg in $categorized[$typeKey]) {
+            $notesContent += "  - $msg`n"
+        }
+    }
+}
+
+$notesContent += @"
+
+## Hinweise
+
+- Dieser Release fokussiert auf Prozess- und Tooling-Qualität.
+- Stabilisierung der Release-/Build-Pipeline mit automatischer Markdown-Lint-Bereinigung.
+- Verbesserungen für größere Teams und reproduzierbare Abläufe.
+
+---
+
+Weitere Details unter: [Changelog](https://github.com/TomGorontzy/Bewerbungsverwaltung/commits/$ReleaseVersion)
+"@
+
+# Notes-Datei schreiben
+[System.IO.File]::WriteAllText($notesFile, $notesContent, [System.Text.UTF8Encoding]::new($false))
+Write-Host "[Release] Release-Notes mit Zusammenfassung erstellt" -ForegroundColor Green
+
+# GitHub Release mit Notes-Datei erstellen
+$releaseArgs = @('release', 'create', $ReleaseVersion, $zipPath, '--title', $ReleaseVersion, '--notes-file', $notesFile)
 & gh @releaseArgs
+
+# Aufräumen
+Remove-Item $notesFile -Force
 
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
 Write-Host "[Release] Lokal gespeichert: releases/$zipName" -ForegroundColor DarkCyan
