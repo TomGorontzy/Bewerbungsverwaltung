@@ -13,6 +13,7 @@ __pycache__/
 # Build artifacts
 build/
 dist/
+releases/
 
 # OS / Editor
 .DS_Store

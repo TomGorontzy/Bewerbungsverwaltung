@@ -53,8 +53,16 @@ if ($Clean) {
 
 Write-Host "[Release] ZIP-Archiv erstellen ..." -ForegroundColor Cyan
 
+# Releases-Verzeichnis vorbereiten
+$releasesDir = Join-Path $root 'releases'
+if (!(Test-Path $releasesDir)) {
+    New-Item $releasesDir -ItemType Directory -Force | Out-Null
+    Write-Host "[Release] Releases-Verzeichnis erstellt: $releasesDir" -ForegroundColor DarkGreen
+}
+
 # ZIP vorbereiten
 $zipName = "Bewerbungsverwaltung-${ReleaseVersion}.zip"
+$zipPath = Join-Path $releasesDir $zipName
 $tempDir = Join-Path $root "release-temp"
 if (Test-Path $tempDir) {
     Remove-Item $tempDir -Recurse -Force
@@ -89,8 +97,9 @@ if (Test-Path $docsSource) {
 
 # ZIP erstellen
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($tempDir, $zipName, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+[System.IO.Compression.ZipFile]::CreateFromDirectory($tempDir, $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 Write-Host "[Release] ZIP erstellt: $zipName" -ForegroundColor Green
+Write-Host "[Release] Lokal gespeichert: releases/$zipName" -ForegroundColor DarkCyan
 
 # Aufräumen
 Remove-Item $tempDir -Recurse -Force
@@ -102,11 +111,9 @@ $pushTagArgs = @('push', 'origin', $ReleaseVersion)
 & git @pushTagArgs
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
-$releaseArgs = @('release', 'create', $ReleaseVersion, $zipName, '--title', $ReleaseVersion, '--generate-notes')
+$releaseArgs = @('release', 'create', $ReleaseVersion, $zipPath, '--title', $ReleaseVersion, '--generate-notes')
 & gh @releaseArgs
 
-# ZIP nach Upload löschen (optional, aber sauberer)
-Remove-Item $zipName -Force
-
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
-Write-Host "[Release] Release-URL: https://github.com/TomGorontzy/Bewerbungsverwaltung/releases/tag/$ReleaseVersion" -ForegroundColor Cyan
+Write-Host "[Release] Lokal gespeichert: releases/$zipName" -ForegroundColor DarkCyan
+Write-Host "[Release] GitHub Release: https://github.com/TomGorontzy/Bewerbungsverwaltung/releases/tag/$ReleaseVersion" -ForegroundColor Cyan
