@@ -100,6 +100,30 @@ class BewerbungsverwaltungApp:
 
     def _configure_treeview_styles(self) -> None:
         style = ttk.Style(self.root)
+        style.theme_use("clam")
+
+        style.configure(
+            "TNotebook",
+            background="#dde3ea",
+            borderwidth=0,
+            tabmargins=[2, 4, 0, 0],
+        )
+        style.configure(
+            "TNotebook.Tab",
+            font=("Segoe UI", 10),
+            foreground="#1a1a1a",
+            background="#b8c4cf",
+            padding=[14, 6],
+            borderwidth=1,
+            relief="flat",
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", "#2e75b6"), ("active", "#7fa8c9")],
+            foreground=[("selected", "#ffffff"), ("active", "#1a1a1a")],
+            font=[("selected", ("Segoe UI", 10, "bold"))],
+        )
+
         style.configure("Readable.Treeview", rowheight=24)
         style.configure(
             "Readable.Treeview.Heading",
