@@ -17,6 +17,10 @@ if ($Clean) {
 }
 
 & $python -m pip install -r "$root\requirements.txt"
+
+Write-Host "[Build] Markdown-Lintfix ausführen ..." -ForegroundColor Cyan
+& "$root\scripts\markdown_lint_fix.ps1"
+
 $pyiArgs = @("-m", "PyInstaller", "--noconfirm")
 if ($Clean) {
     $pyiArgs += "--clean"

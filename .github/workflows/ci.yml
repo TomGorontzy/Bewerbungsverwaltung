@@ -24,6 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Markdown auto-fix and lint check
+        run: |
+          python -m pymarkdown -d MD013,MD022,MD026,MD032,MD036 fix --recurse --respect-gitignore .
+          python -m pymarkdown -d MD013,MD022,MD026,MD032,MD036 scan --recurse --respect-gitignore .
+
       - name: Syntax check
         run: |
           python -m py_compile run.py
