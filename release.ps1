@@ -170,22 +170,29 @@ $allCommits = @(git log "$previousTag..HEAD" --oneline 2>$null)
 # Commits nach Typ kategorisieren
 $categorized = @{}
 foreach ($commit in $allCommits) {
-    $found = $false
-    foreach ($typeKey in $commitTypes.Keys) {
-        if ($commit -imatch "^[a-f0-9]+ $typeKey") {
-            if (-not $categorized.ContainsKey($typeKey)) {
-                $categorized[$typeKey] = @()
+    # Format: <hash> <type>: <message>
+    $parts = $commit -split '\s+', 2
+    if ($parts.Count -eq 2) {
+        $hash = $parts[0]
+        $message = $parts[1]
+        
+        $found = $false
+        foreach ($typeKey in $commitTypes.Keys) {
+            if ($message -imatch "^$([regex]::Escape($typeKey))") {
+                if (-not $categorized.ContainsKey($typeKey)) {
+                    $categorized[$typeKey] = @()
+                }
+                $categorized[$typeKey] += $message
+                $found = $true
+                break
             }
-            $categorized[$typeKey] += $commit -replace "^[a-f0-9]+ " , ""
-            $found = $true
-            break
         }
-    }
-    if (-not $found) {
-        if (-not $categorized.ContainsKey('other')) {
-            $categorized['other'] = @()
+        if (-not $found) {
+            if (-not $categorized.ContainsKey('other')) {
+                $categorized['other'] = @()
+            }
+            $categorized['other'] += $message
         }
-        $categorized['other'] += $commit -replace "^[a-f0-9]+ ", ""
     }
 }
 
