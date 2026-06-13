@@ -58,7 +58,27 @@ $pushTagArgs = @('push', 'origin', $ReleaseVersion)
 & git @pushTagArgs
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
-$releaseArgs = @('release', 'create', $ReleaseVersion, 'dist/Bewerbungsverwaltung.exe', '--title', $ReleaseVersion, '--generate-notes')
+$releaseArgs = @('release', 'create', $ReleaseVersion, '--title', $ReleaseVersion, '--generate-notes')
+
+# Assets sammeln
+$assets = @(
+    'dist/Bewerbungsverwaltung.exe',
+    'Bewerbungsaktivitäten mit Erinnerungen.xlsx',
+    'docs/DOKUMENTATION_ANWENDER.md',
+    'docs/DOKUMENTATION_TECHNIK.md',
+    'docs/FAQ.md',
+    'README.md'
+)
+
+foreach ($asset in $assets) {
+    if (Test-Path $asset) {
+        $releaseArgs += $asset
+    } else {
+        Write-Host "[Release] ⚠ Asset nicht gefunden: $asset" -ForegroundColor Yellow
+    }
+}
+
 & gh @releaseArgs
 
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
+Write-Host "[Release] Release-URL: https://github.com/TomGorontzy/Bewerbungsverwaltung/releases/tag/$ReleaseVersion" -ForegroundColor Cyan
