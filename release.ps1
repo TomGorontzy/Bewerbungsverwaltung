@@ -105,10 +105,41 @@ Write-Host "[Release] Lokal gespeichert: releases/$zipName" -ForegroundColor Dar
 Remove-Item $tempDir -Recurse -Force
 
 Write-Host "[Release] Tag erstellen und pushen ..." -ForegroundColor Cyan
-$tagArgs = @('tag', '-a', $ReleaseVersion, '-m', "Release $ReleaseVersion")
+
+# Tag-Nachricht vorbereiten
+$tagDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$previousTag = $(git describe --tags --abbrev=0 2>$null) || "v0.0.0"
+
+# Commits seit letztem Tag sammeln
+$commitsSinceTag = @(git log "$previousTag..HEAD" --oneline 2>$null)
+$commitCount = $commitsSinceTag.Count
+
+$tagMessage = @"
+Release: $ReleaseVersion
+Datum: $tagDate
+Commits: $commitCount
+
+Änderungen seit $previousTag :
+"@
+
+if ($commitCount -gt 0) {
+    $tagMessage += "`n"
+    foreach ($commit in $commitsSinceTag) {
+        $tagMessage += "  • $commit`n"
+    }
+} else {
+    $tagMessage += "`n  (Keine Commits)"
+}
+
+$tagMessage += "`nZIP: $zipName"
+
+# Tag mit ausführlicher Nachricht erstellen
+$tagArgs = @('tag', '-a', $ReleaseVersion, '-m', $tagMessage)
 & git @tagArgs
 $pushTagArgs = @('push', 'origin', $ReleaseVersion)
 & git @pushTagArgs
+
+Write-Host "[Release] Tag mit Versionsinformationen erstellt" -ForegroundColor Green
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
 $releaseArgs = @('release', 'create', $ReleaseVersion, $zipPath, '--title', $ReleaseVersion, '--generate-notes')
