@@ -280,24 +280,44 @@ class BewerbungsverwaltungApp:
     def _build_documentation_buttons(self, parent: ttk.Frame) -> None:
         docs_frame = ttk.Frame(parent)
         docs_frame.pack(side="right", padx=(0, 12))
+        header_button_width = 16
+        ttk.Button(
+            docs_frame,
+            text="Excel-Datei",
+            command=self._open_release_excel_file,
+            width=header_button_width,
+        ).pack(side="left", padx=4)
         ttk.Button(
             docs_frame,
             text="Anwender-Doku",
             command=lambda: self._open_documentation(Path("docs") / "DOKUMENTATION_ANWENDER.md"),
-            width=16,
+            width=header_button_width,
         ).pack(side="left", padx=4)
         ttk.Button(
             docs_frame,
             text="FAQ",
             command=lambda: self._open_documentation(Path("docs") / "FAQ.md"),
-            width=10,
+            width=header_button_width,
         ).pack(side="left", padx=4)
         ttk.Button(
             docs_frame,
             text="Technik-Doku",
             command=lambda: self._open_documentation(Path("docs") / "DOKUMENTATION_TECHNIK.md"),
-            width=16,
+            width=header_button_width,
         ).pack(side="left", padx=4)
+
+    def _open_release_excel_file(self) -> None:
+        target = self.workbook_path
+        if not target.exists():
+            messagebox.showwarning("Datei fehlt", f"Excel-Datei nicht gefunden:\n{target}")
+            return
+
+        try:
+            os.startfile(target)  # type: ignore[attr-defined]
+        except AttributeError:
+            webbrowser.open(target.resolve().as_uri())
+        except OSError as exc:
+            messagebox.showerror("Öffnen fehlgeschlagen", f"Excel-Datei konnte nicht geöffnet werden:\n{exc}")
 
     def _build_date_input(self, parent: ttk.Frame, var: tk.StringVar, field_key: str) -> ttk.Frame:
         return self._build_date_input_with_callback(

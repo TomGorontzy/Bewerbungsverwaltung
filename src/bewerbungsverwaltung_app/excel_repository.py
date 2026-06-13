@@ -74,7 +74,8 @@ class ExcelRepository:
 
         for key, col in LOOKUP_COLUMNS.items():
             items: list[str] = []
-            for row in range(2, 200):
+            last_row = self._find_last_lookup_row(ws, col)
+            for row in range(2, last_row + 1):
                 value = as_str(ws[f"{col}{row}"].value)
                 if value and value not in items:
                     items.append(value)
