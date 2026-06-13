@@ -18,6 +18,12 @@ Diese Anleitung zeigt nur die **konkreten Schritte**, die im Alltag funktioniere
 2. Falls Windows eine Warnung zeigt: `Weitere Informationen` → `Trotzdem ausführen`.
 3. Warten Sie kurz, bis die Daten geladen sind.
 
+### 2a) Fenster-/Vollbildmodus umschalten
+
+- `F11` schaltet den echten Vollbildmodus ein bzw. aus.
+- `Esc` beendet den echten Vollbildmodus.
+- Standardmäßig startet die Anwendung maximiert.
+
 ### 3) Neue Bewerbung erfassen
 
 1. Wechseln Sie in den Tab **Neue Bewerbungen**.

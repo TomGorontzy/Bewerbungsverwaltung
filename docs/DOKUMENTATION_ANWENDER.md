@@ -44,6 +44,12 @@ Zusätzlich enthält die Anwendung:
    - `Weitere Informationen`
    - `Trotzdem ausführen`
 
+Fenstermodus/Vollbild:
+
+- Die Anwendung startet standardmäßig maximiert.
+- Mit `F11` kann der echte Vollbildmodus ein- oder ausgeschaltet werden.
+- Mit `Esc` wird der echte Vollbildmodus beendet.
+
 ## Bedienung
 
 ### 1) Neue Bewerbungen
