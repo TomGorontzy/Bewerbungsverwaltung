@@ -17,6 +17,11 @@ if ($Clean) {
 }
 
 & $python -m pip install -r "$root\requirements.txt"
-& $python -m PyInstaller --noconfirm --clean --onefile --windowed --name Bewerbungsverwaltung run.py
+$pyiArgs = @("-m", "PyInstaller", "--noconfirm")
+if ($Clean) {
+    $pyiArgs += "--clean"
+}
+$pyiArgs += "$root\Bewerbungsverwaltung.spec"
+& $python @pyiArgs
 
 Write-Host "Fertig. EXE liegt unter dist\Bewerbungsverwaltung.exe" -ForegroundColor Green

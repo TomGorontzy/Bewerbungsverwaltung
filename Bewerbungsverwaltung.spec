@@ -1,9 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+ROOT = Path.cwd()
+SRC = ROOT / 'src'
+
 
 a = Analysis(
-    ['d:/OneDrive/Git-Projekte INN-tegrativ gGmbH/Bewerbungsverwaltung/run.py'],
-    pathex=[],
+    [str(ROOT / 'run.py')],
+    pathex=[str(SRC)],
     binaries=[],
     datas=[],
     hiddenimports=[],
