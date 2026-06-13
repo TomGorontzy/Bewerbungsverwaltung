@@ -2,16 +2,16 @@
 
 ## Inhaltsverzeichnis
 
-- Zweck
-- Voraussetzungen
-- Start der Anwendung
-- Bedienung
-   - Neue Bewerbungen
-   - Nachzufassende Bewerbungen
-   - Erledigte Bewerbungen (Archiv)
-- Datensicherung
-- Häufige Probleme
-- Support-Hinweis
+- [Zweck](#zweck)
+- [Voraussetzungen](#voraussetzungen)
+- [Start der Anwendung](#start-der-anwendung)
+- [Bedienung](#bedienung)
+   - [Neue Bewerbungen](#1-neue-bewerbungen)
+   - [Nachzufassende Bewerbungen](#2-nachzufassende-bewerbungen)
+   - [Erledigte Bewerbungen (Archiv)](#3-erledigte-bewerbungen-archiv)
+- [Datensicherung](#datensicherung)
+- [Häufige Probleme](#häufige-probleme)
+- [Support-Hinweis](#support-hinweis)
 
 ## Zweck
 

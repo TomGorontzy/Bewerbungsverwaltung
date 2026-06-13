@@ -2,12 +2,12 @@
 
 ## Inhaltsverzeichnis
 
-- Allgemein
-- Installation & Start
-- Dateneingabe
-- Probleme & Lösungen
-- Versionen & Updates
-- Support
+- [Allgemein](#allgemein)
+- [Installation & Start](#installation--start)
+- [Dateneingabe](#dateneingabe)
+- [Probleme & Lösungen](#probleme--lösungen)
+- [Versionen & Updates](#versionen--updates)
+- [Support](#support)
 
 ## Allgemein
 

@@ -2,18 +2,18 @@
 
 ## Inhaltsverzeichnis
 
-- Projektüberblick
-- Repository-Struktur
-- Datenquelle und Blätter
-- Fachlogik (MVP)
-	- Neue Bewerbungen
-	- Nachzufassen
-	- Archiv
-- Entwicklung lokal
-- Build (EXE)
-- CI
-- Bekannte technische Hinweise
-- Erweiterungsvorschläge
+- [Projektüberblick](#projektüberblick)
+- [Repository-Struktur](#repository-struktur)
+- [Datenquelle und Blätter](#datenquelle-und-blätter)
+- [Fachlogik (MVP)](#fachlogik-mvp)
+  - [Neue Bewerbungen](#neue-bewerbungen)
+  - [Nachzufassen](#nachzufassen)
+  - [Archiv](#archiv)
+- [Entwicklung lokal](#entwicklung-lokal)
+- [Build (EXE)](#build-exe)
+- [CI](#ci)
+- [Bekannte technische Hinweise](#bekannte-technische-hinweise)
+- [Erweiterungsvorschläge](#erweiterungsvorschläge)
 
 ## Projektüberblick
 
