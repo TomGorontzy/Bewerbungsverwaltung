@@ -85,6 +85,17 @@ Automatisch gesetzt durch Excel-Logik:
 
 Im Tab **Nachzufassende Bewerbungen** werden fällige Aktivitäten angezeigt.
 
+Kriterien für die Listenführung:
+
+- Einträge mit **Endergebnis** oder Status **Absage/Zusage** werden nicht hier geführt, sondern im Archiv.
+- Ein Eintrag erscheint in der Liste, wenn **mindestens eines** der folgenden Kriterien erfüllt ist:
+  - `Erinnerungsdatum` ist erreicht oder überschritten (≤ heute),
+  - Status gehört zu den Follow-up-Status und das `Status-Datum` ist mindestens 14 Tage alt,
+  - Kennzeichnung `Heute erledigen?` steht auf `ja`.
+- Sortierung in der Nachfassliste:
+  - primär nach `Erinnerungsdatum` (frühere zuerst),
+  - bei Gleichstand werden hohe Prioritäten bevorzugt.
+
 Möglichkeiten:
 
 - Filtern
