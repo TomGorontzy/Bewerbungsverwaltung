@@ -8,6 +8,11 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+
 if ($ReleaseVersion -notmatch '^v\d+\.\d+\.\d+$') {
     throw "Ungültiges Versionsformat '$ReleaseVersion'. Erwartet z. B. v0.1.1"
 }
