@@ -25,6 +25,12 @@ Dieses Projekt erweitert die vorhandene Excel-Datei `Bewerbungsaktivitäten mit 
 
 Danach liegt die Anwendung als `dist/Bewerbungsverwaltung.exe` vor.
 
+## Dokumentation
+
+- Anwenderdokumentation: `docs/DOKUMENTATION_ANWENDER.md`
+- Technische Dokumentation: `docs/DOKUMENTATION_TECHNIK.md`
+- FAQ: `docs/FAQ.md`
+
 ## Hinweise zur Excel-Logik
 
 Die App schreibt in das Blatt **Bewerbungsübersicht** und übernimmt die bestehenden Formeln für:
