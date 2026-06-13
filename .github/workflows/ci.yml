@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke-check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Syntax check
+        run: |
+          python -m py_compile run.py
+          python -m py_compile src/bewerbungsverwaltung_app/main.py
+          python -m py_compile src/bewerbungsverwaltung_app/gui.py
+          python -m py_compile src/bewerbungsverwaltung_app/excel_repository.py
+          python -m py_compile src/bewerbungsverwaltung_app/constants.py
+          python -m py_compile src/bewerbungsverwaltung_app/models.py
+          python -m py_compile src/bewerbungsverwaltung_app/utils.py
+
+      - name: Excel smoke test
+        shell: pwsh
+        run: |
+          python -c "import sys; from pathlib import Path; root=Path('.').resolve(); sys.path.insert(0, str(root/'src')); from bewerbungsverwaltung_app.excel_repository import ExcelRepository; p=root/'Bewerbungsaktivitäten mit Erinnerungen.xlsx'; repo=ExcelRepository(p); lookups=repo.load_lookups(); records=repo.load_records(); fu, ar=repo.categorize_records(records); assert len(lookups.status) > 0; assert isinstance(records, list); print(f'Records={len(records)}, FollowUp={len(fu)}, Archive={len(ar)}')"
