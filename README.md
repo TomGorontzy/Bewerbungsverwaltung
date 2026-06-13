@@ -29,8 +29,8 @@ Bei jedem Build wird automatisch eine Markdown-Lint/Fix-Routine ausgeführt.
 
 ## Release erstellen
 
-- `./release.ps1 -Version v0.1.2`
-- optional sauber neu: `./release.ps1 -Version v0.1.2 -Clean`
+- `./release.ps1 -ReleaseVersion v0.1.2`
+- optional sauber neu: `./release.ps1 -ReleaseVersion v0.1.2 -Clean`
 
 Der Release-Prozess führt automatisch aus:
 
@@ -39,6 +39,11 @@ Der Release-Prozess führt automatisch aus:
 - EXE-Build
 - Tag-Erstellung und Push
 - GitHub Release mit EXE-Asset
+
+Hinweis für PowerShell-Analyse:
+
+- `PSScriptAnalyzerSettings.psd1` deaktiviert gezielt die bekannte
+  False-Positive-Regel `PSPossibleIncorrectUsageOfRedirectionOperator`.
 
 ## Dokumentation
 
