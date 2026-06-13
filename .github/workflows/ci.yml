@@ -25,9 +25,9 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Markdown auto-fix and lint check
+        shell: pwsh
         run: |
-          python -m pymarkdown -d MD013,MD022,MD026,MD032,MD036 fix --recurse --respect-gitignore .
-          python -m pymarkdown -d MD013,MD022,MD026,MD032,MD036 scan --recurse --respect-gitignore .
+          ./scripts/markdown_lint_fix.ps1
 
       - name: Syntax check
         run: |

@@ -15,12 +15,28 @@ if ($ReleaseVersion -notmatch '^v\d+\.\d+\.\d+$') {
 Write-Host "[Release] Markdown-Lintfix ausführen ..." -ForegroundColor Cyan
 & "$root\scripts\markdown_lint_fix.ps1"
 
-$mdChanges = git status --porcelain -- '*.md'
-if ($mdChanges) {
+$statusArgs = @('status', '--porcelain')
+$mdChanges = @((& git @statusArgs) | Where-Object { $_ -imatch '\.(md|markdown|mdown|mkd)$' })
+if ($mdChanges.Count -gt 0) {
     Write-Host "[Release] Markdown-Änderungen gefunden, committe automatisch ..." -ForegroundColor Yellow
-    git add '*.md'
-    git commit -m "Docs: Markdown-Lintfix vor Release $ReleaseVersion"
-    git push
+    $mdPaths = @()
+    foreach ($line in $mdChanges) {
+        $pathPart = $line.Substring(3).Trim()
+        $renameSeparator = ' -' + '> '
+        if ($pathPart.Contains($renameSeparator)) {
+            $pathPart = $pathPart.Split($renameSeparator)[1]
+        }
+        $mdPaths += $pathPart
+    }
+
+    foreach ($path in ($mdPaths | Sort-Object -Unique)) {
+        $addArgs = @('add', "$path")
+        & git @addArgs
+    }
+    $commitArgs = @('commit', '-m', "Docs: Markdown-Lintfix vor Release $ReleaseVersion")
+    & git @commitArgs
+    $pushArgs = @('push')
+    & git @pushArgs
 }
 
 Write-Host "[Release] EXE bauen ..." -ForegroundColor Cyan
@@ -31,10 +47,13 @@ if ($Clean) {
 }
 
 Write-Host "[Release] Tag erstellen und pushen ..." -ForegroundColor Cyan
-git tag -a $ReleaseVersion -m "Release $ReleaseVersion"
-git push origin $ReleaseVersion
+$tagArgs = @('tag', '-a', $ReleaseVersion, '-m', "Release $ReleaseVersion")
+& git @tagArgs
+$pushTagArgs = @('push', 'origin', $ReleaseVersion)
+& git @pushTagArgs
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
-gh release create $ReleaseVersion "dist/Bewerbungsverwaltung.exe" --title "$ReleaseVersion" --generate-notes
+$releaseArgs = @('release', 'create', $ReleaseVersion, 'dist/Bewerbungsverwaltung.exe', '--title', $ReleaseVersion, '--generate-notes')
+& gh @releaseArgs
 
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
