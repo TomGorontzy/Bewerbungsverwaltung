@@ -51,6 +51,50 @@ if ($Clean) {
     & "$root\build_exe.ps1"
 }
 
+Write-Host "[Release] ZIP-Archiv erstellen ..." -ForegroundColor Cyan
+
+# ZIP vorbereiten
+$zipName = "Bewerbungsverwaltung-${ReleaseVersion}.zip"
+$tempDir = Join-Path $root "release-temp"
+if (Test-Path $tempDir) {
+    Remove-Item $tempDir -Recurse -Force
+}
+New-Item $tempDir -ItemType Directory | Out-Null
+
+# Dateien ins temp-Verzeichnis kopieren
+@(
+    'dist/Bewerbungsverwaltung.exe',
+    'Bewerbungsaktivitäten mit Erinnerungen.xlsx',
+    'README.md'
+) | ForEach-Object {
+    if (Test-Path $_) {
+        Copy-Item $_ $tempDir -Force
+        Write-Host "  + $(Split-Path -Leaf $_)" -ForegroundColor DarkGreen
+    }
+}
+
+# Docs-Verzeichnis mit allen Markdown-Dateien
+$docsSource = Join-Path $root 'docs'
+$docsDest = Join-Path $tempDir 'docs'
+if (Test-Path $docsSource) {
+    New-Item $docsDest -ItemType Directory -Force | Out-Null
+    @('DOKUMENTATION_ANWENDER.md', 'DOKUMENTATION_TECHNIK.md', 'FAQ.md') | ForEach-Object {
+        $docFile = Join-Path $docsSource $_
+        if (Test-Path $docFile) {
+            Copy-Item $docFile $docsDest -Force
+            Write-Host "  + docs/$_" -ForegroundColor DarkGreen
+        }
+    }
+}
+
+# ZIP erstellen
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($tempDir, $zipName, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+Write-Host "[Release] ZIP erstellt: $zipName" -ForegroundColor Green
+
+# Aufräumen
+Remove-Item $tempDir -Recurse -Force
+
 Write-Host "[Release] Tag erstellen und pushen ..." -ForegroundColor Cyan
 $tagArgs = @('tag', '-a', $ReleaseVersion, '-m', "Release $ReleaseVersion")
 & git @tagArgs
@@ -58,32 +102,11 @@ $pushTagArgs = @('push', 'origin', $ReleaseVersion)
 & git @pushTagArgs
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
-
-# Assets sammeln und prüfen
-$assetPaths = @(
-    'dist/Bewerbungsverwaltung.exe',
-    'Bewerbungsaktivitäten mit Erinnerungen.xlsx',
-    'docs/DOKUMENTATION_ANWENDER.md',
-    'docs/DOKUMENTATION_TECHNIK.md',
-    'docs/FAQ.md',
-    'README.md'
-)
-
-$validAssets = @()
-foreach ($asset in $assetPaths) {
-    if (Test-Path $asset) {
-        $validAssets += $asset
-    } else {
-        Write-Host "[Release] ⚠ Asset nicht gefunden: $asset" -ForegroundColor Yellow
-    }
-}
-
-Write-Host "[Release] $($validAssets.Count) Assets für Release vorbereitet:" -ForegroundColor Cyan
-$validAssets | ForEach-Object { Write-Host "  - $_" -ForegroundColor DarkCyan }
-
-# Release mit Assets erstellen (Leerzeichen in Pfaden werden durch @() handled)
-$releaseArgs = @('release', 'create', $ReleaseVersion, '--title', $ReleaseVersion, '--generate-notes') + $validAssets
+$releaseArgs = @('release', 'create', $ReleaseVersion, $zipName, '--title', $ReleaseVersion, '--generate-notes')
 & gh @releaseArgs
+
+# ZIP nach Upload löschen (optional, aber sauberer)
+Remove-Item $zipName -Force
 
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
 Write-Host "[Release] Release-URL: https://github.com/TomGorontzy/Bewerbungsverwaltung/releases/tag/$ReleaseVersion" -ForegroundColor Cyan
