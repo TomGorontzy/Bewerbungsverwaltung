@@ -32,14 +32,30 @@ class BewerbungsverwaltungApp:
         self.update_vars: dict[str, tk.StringVar] = {}
         self.update_widgets: dict[str, tk.Widget] = {}
 
+        self.follow_filter_var = tk.StringVar()
+        self.archive_filter_var = tk.StringVar()
+        self.filter_debounce_ms = 150
+        self.follow_filter_after_id: str | None = None
+        self.archive_filter_after_id: str | None = None
+        self.follow_sort_column = "erinnerung"
+        self.follow_sort_desc = False
+        self.archive_sort_column = "status_datum"
+        self.archive_sort_desc = True
+
         self._build_ui()
         self._reset_form()
-        self.refresh_data()
+        self.root.after_idle(self.refresh_data)
 
     def run(self) -> None:
         self.root.mainloop()
 
+    def _set_busy_cursor(self, busy: bool) -> None:
+        self.root.config(cursor="watch" if busy else "")
+        self.root.update_idletasks()
+
     def _build_ui(self) -> None:
+        self._configure_treeview_styles()
+
         header = ttk.Frame(self.root, padding=12)
         header.pack(fill="x")
 
@@ -66,6 +82,21 @@ class BewerbungsverwaltungApp:
         self._build_new_tab()
         self._build_follow_up_tab()
         self._build_archive_tab()
+
+    def _configure_treeview_styles(self) -> None:
+        style = ttk.Style(self.root)
+        style.configure("Readable.Treeview", rowheight=24)
+        style.configure(
+            "Readable.Treeview.Heading",
+            foreground="#1f1f1f",
+            background="#f0f0f0",
+            font=("Segoe UI", 10, "bold"),
+        )
+        style.map(
+            "Readable.Treeview.Heading",
+            foreground=[("active", "#000000"), ("disabled", "#777777")],
+            background=[("active", "#e6e6e6")],
+        )
 
     def _build_new_tab(self) -> None:
         self.tab_new.columnconfigure(0, weight=0)
@@ -255,8 +286,16 @@ class BewerbungsverwaltungApp:
             text="Fällige Bewerbungen: Erinnerungsdatum erreicht oder Follow-up überfällig.",
         ).pack(anchor="w", pady=(0, 8))
 
+        follow_filter_box = ttk.Frame(self.tab_follow_up)
+        follow_filter_box.pack(fill="x", pady=(0, 8))
+        ttk.Label(follow_filter_box, text="Filter:").pack(side="left", padx=(0, 8))
+        follow_filter_entry = ttk.Entry(follow_filter_box, textvariable=self.follow_filter_var, width=48)
+        follow_filter_entry.pack(side="left", padx=(0, 8))
+        follow_filter_entry.bind("<KeyRelease>", lambda _event: self._schedule_follow_filter_render())
+        ttk.Button(follow_filter_box, text="Zurücksetzen", command=self._reset_follow_filter, width=12).pack(side="left")
+
         columns = ("id", "unternehmen", "position", "status", "erinnerung", "prioritaet", "schritt")
-        self.follow_tree = ttk.Treeview(self.tab_follow_up, columns=columns, show="headings", height=16)
+        self.follow_tree = ttk.Treeview(self.tab_follow_up, columns=columns, show="headings", height=16, style="Readable.Treeview")
         self.follow_tree.pack(fill="both", expand=True, pady=(0, 10))
         self.follow_tree.bind("<<TreeviewSelect>>", self._on_follow_tree_select)
         self.follow_tree.bind("<Double-1>", self._on_follow_tree_double_click)
@@ -276,7 +315,7 @@ class BewerbungsverwaltungApp:
         self.follow_max_width = 460
 
         for col in columns:
-            self.follow_tree.heading(col, text=headings[col])
+            self.follow_tree.heading(col, text=headings[col], command=lambda c=col: self._toggle_follow_sort(c))
             self.follow_tree.column(col, width=widths[col], minwidth=widths[col], anchor="w", stretch=True)
 
         update_box = ttk.LabelFrame(self.tab_follow_up, text="Ausgewählte Bewerbung aktualisieren", padding=10)
@@ -335,6 +374,47 @@ class BewerbungsverwaltungApp:
         for var in self.update_vars.values():
             var.set("")
 
+    def _reset_follow_filter(self) -> None:
+        if self.follow_filter_after_id is not None:
+            self.root.after_cancel(self.follow_filter_after_id)
+            self.follow_filter_after_id = None
+        self.follow_filter_var.set("")
+        self._render_follow_up_records()
+
+    def _schedule_follow_filter_render(self) -> None:
+        if self.follow_filter_after_id is not None:
+            self.root.after_cancel(self.follow_filter_after_id)
+        self.follow_filter_after_id = self.root.after(self.filter_debounce_ms, self._apply_follow_filter_render)
+
+    def _apply_follow_filter_render(self) -> None:
+        self.follow_filter_after_id = None
+        self._render_follow_up_records()
+
+    def _toggle_follow_sort(self, column: str) -> None:
+        if self.follow_sort_column == column:
+            self.follow_sort_desc = not self.follow_sort_desc
+        else:
+            self.follow_sort_column = column
+            self.follow_sort_desc = False
+        self._render_follow_up_records()
+
+    def _follow_sort_key(self, rec: ApplicationRecord, column: str):
+        if column == "erinnerung":
+            return rec.erinnerungsdatum or date.max
+        if column == "id":
+            return rec.bewerbungs_id.lower()
+        if column == "unternehmen":
+            return rec.unternehmen.lower()
+        if column == "position":
+            return rec.position.lower()
+        if column == "status":
+            return rec.status.lower()
+        if column == "prioritaet":
+            return rec.prioritaet.lower()
+        if column == "schritt":
+            return rec.naechster_schritt.lower()
+        return ""
+
     def _build_archive_tab(self) -> None:
         self.tab_archive.columnconfigure(0, weight=1)
 
@@ -343,8 +423,16 @@ class BewerbungsverwaltungApp:
             text="Archiv: abgeschlossene Bewerbungen (Absage/Zusage oder mit Endergebnis).",
         ).pack(anchor="w", pady=(0, 8))
 
+        archive_filter_box = ttk.Frame(self.tab_archive)
+        archive_filter_box.pack(fill="x", pady=(0, 8))
+        ttk.Label(archive_filter_box, text="Filter:").pack(side="left", padx=(0, 8))
+        archive_filter_entry = ttk.Entry(archive_filter_box, textvariable=self.archive_filter_var, width=48)
+        archive_filter_entry.pack(side="left", padx=(0, 8))
+        archive_filter_entry.bind("<KeyRelease>", lambda _event: self._schedule_archive_filter_render())
+        ttk.Button(archive_filter_box, text="Zurücksetzen", command=self._reset_archive_filter, width=12).pack(side="left")
+
         columns = ("id", "unternehmen", "position", "status", "endergebnis", "status_datum")
-        self.archive_tree = ttk.Treeview(self.tab_archive, columns=columns, show="headings", height=22)
+        self.archive_tree = ttk.Treeview(self.tab_archive, columns=columns, show="headings", height=22, style="Readable.Treeview")
         self.archive_tree.pack(fill="both", expand=True)
 
         headings = {
@@ -361,8 +449,47 @@ class BewerbungsverwaltungApp:
         self.archive_max_width = 460
 
         for col in columns:
-            self.archive_tree.heading(col, text=headings[col])
+            self.archive_tree.heading(col, text=headings[col], command=lambda c=col: self._toggle_archive_sort(c))
             self.archive_tree.column(col, width=widths[col], minwidth=widths[col], anchor="w", stretch=True)
+
+    def _reset_archive_filter(self) -> None:
+        if self.archive_filter_after_id is not None:
+            self.root.after_cancel(self.archive_filter_after_id)
+            self.archive_filter_after_id = None
+        self.archive_filter_var.set("")
+        self._render_archive_records()
+
+    def _schedule_archive_filter_render(self) -> None:
+        if self.archive_filter_after_id is not None:
+            self.root.after_cancel(self.archive_filter_after_id)
+        self.archive_filter_after_id = self.root.after(self.filter_debounce_ms, self._apply_archive_filter_render)
+
+    def _apply_archive_filter_render(self) -> None:
+        self.archive_filter_after_id = None
+        self._render_archive_records()
+
+    def _toggle_archive_sort(self, column: str) -> None:
+        if self.archive_sort_column == column:
+            self.archive_sort_desc = not self.archive_sort_desc
+        else:
+            self.archive_sort_column = column
+            self.archive_sort_desc = False
+        self._render_archive_records()
+
+    def _archive_sort_key(self, rec: ApplicationRecord, column: str):
+        if column == "status_datum":
+            return rec.status_datum or date.min
+        if column == "id":
+            return rec.bewerbungs_id.lower()
+        if column == "unternehmen":
+            return rec.unternehmen.lower()
+        if column == "position":
+            return rec.position.lower()
+        if column == "status":
+            return rec.status.lower()
+        if column == "endergebnis":
+            return rec.endergebnis.lower()
+        return ""
 
     def _save_new_record(self) -> None:
         payload = {
@@ -424,11 +551,15 @@ class BewerbungsverwaltungApp:
                 var.set("")
 
     def refresh_data(self) -> None:
-        self.records = self.repo.load_records()
-        self.follow_up_records, self.archive_records = self.repo.categorize_records(self.records)
-        self._render_follow_up_records()
-        self._render_archive_records()
-        self._clear_follow_up_form()
+        self._set_busy_cursor(True)
+        try:
+            self.records = self.repo.load_records()
+            self.follow_up_records, self.archive_records = self.repo.categorize_records(self.records)
+            self._render_follow_up_records()
+            self._render_archive_records()
+            self._clear_follow_up_form()
+        finally:
+            self._set_busy_cursor(False)
 
     def _render_follow_up_records(self) -> None:
         for item in self.follow_tree.get_children():
@@ -437,7 +568,34 @@ class BewerbungsverwaltungApp:
         self.follow_tree["displaycolumns"] = ("id", "unternehmen", "position", "status", "erinnerung", "prioritaet", "schritt")
         self.follow_tree["columns"] = ("id", "unternehmen", "position", "status", "erinnerung", "prioritaet", "schritt", "_row")
 
-        for rec in self.follow_up_records:
+        filter_text = self.follow_filter_var.get().strip().lower()
+        records = self.follow_up_records
+        if filter_text:
+            records = [
+                rec
+                for rec in records
+                if filter_text in " ".join(
+                    [
+                        rec.bewerbungs_id,
+                        rec.unternehmen,
+                        rec.position,
+                        rec.status,
+                        rec.prioritaet,
+                        rec.naechster_schritt,
+                        rec.erinnerungsdatum.strftime("%d.%m.%Y") if rec.erinnerungsdatum else "",
+                    ]
+                ).lower()
+            ]
+
+        records = sorted(records, key=lambda rec: self._follow_sort_key(rec, self.follow_sort_column), reverse=self.follow_sort_desc)
+
+        for col, base in self.follow_headings.items():
+            marker = ""
+            if col == self.follow_sort_column:
+                marker = " ↓" if self.follow_sort_desc else " ↑"
+            self.follow_tree.heading(col, text=f"{base}{marker}", command=lambda c=col: self._toggle_follow_sort(c))
+
+        for rec in records:
             self.follow_tree.insert(
                 "",
                 "end",
@@ -478,7 +636,33 @@ class BewerbungsverwaltungApp:
         for item in self.archive_tree.get_children():
             self.archive_tree.delete(item)
 
-        for rec in self.archive_records:
+        filter_text = self.archive_filter_var.get().strip().lower()
+        records = self.archive_records
+        if filter_text:
+            records = [
+                rec
+                for rec in records
+                if filter_text in " ".join(
+                    [
+                        rec.bewerbungs_id,
+                        rec.unternehmen,
+                        rec.position,
+                        rec.status,
+                        rec.endergebnis,
+                        rec.status_datum.strftime("%d.%m.%Y") if rec.status_datum else "",
+                    ]
+                ).lower()
+            ]
+
+        records = sorted(records, key=lambda rec: self._archive_sort_key(rec, self.archive_sort_column), reverse=self.archive_sort_desc)
+
+        for col, base in self.archive_headings.items():
+            marker = ""
+            if col == self.archive_sort_column:
+                marker = " ↓" if self.archive_sort_desc else " ↑"
+            self.archive_tree.heading(col, text=f"{base}{marker}", command=lambda c=col: self._toggle_archive_sort(c))
+
+        for rec in records:
             self.archive_tree.insert(
                 "",
                 "end",
