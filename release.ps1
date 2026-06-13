@@ -104,15 +104,18 @@ Write-Host "[Release] Lokal gespeichert: releases/$zipName" -ForegroundColor Dar
 # Aufräumen
 Remove-Item $tempDir -Recurse -Force
 
+# WICHTIG: Commits JETZT sammeln, VOR der Tag-Erstellung
+# (Nach Tag-Erstellung würde git describe das neue Tag zurückgeben)
+Write-Host "[Release] Commits für Tag-Nachricht und Release-Notes vorbereiten ..." -ForegroundColor Cyan
+
+$previousTag = $(git describe --tags --abbrev=0 2>$null) || "v0.0.0"
+$allCommits = @(git log "$previousTag..HEAD" --oneline 2>$null)
+$commitCount = $allCommits.Count
+
 Write-Host "[Release] Tag erstellen und pushen ..." -ForegroundColor Cyan
 
 # Tag-Nachricht vorbereiten
 $tagDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$previousTag = $(git describe --tags --abbrev=0 2>$null) || "v0.0.0"
-
-# Commits seit letztem Tag sammeln
-$commitsSinceTag = @(git log "$previousTag..HEAD" --oneline 2>$null)
-$commitCount = $commitsSinceTag.Count
 
 $tagMessage = @"
 Release: $ReleaseVersion
@@ -124,7 +127,7 @@ Commits: $commitCount
 
 if ($commitCount -gt 0) {
     $tagMessage += "`n"
-    foreach ($commit in $commitsSinceTag) {
+    foreach ($commit in $allCommits) {
         $tagMessage += "  • $commit`n"
     }
 } else {
@@ -163,11 +166,7 @@ $commitTypes = @{
     'ci:'        = '🚀 CI/CD'
 }
 
-# Commits seit letztem Tag sammeln
-$previousTag = $(git describe --tags --abbrev=0 2>$null) || "v0.0.0"
-$allCommits = @(git log "$previousTag..HEAD" --oneline 2>$null)
-
-# Commits nach Typ kategorisieren
+# Bereits gesammelte Commits kategorisieren (nicht erneut abrufen!)
 $categorized = @{}
 foreach ($commit in $allCommits) {
     # Format: <hash> <type>: <message>
