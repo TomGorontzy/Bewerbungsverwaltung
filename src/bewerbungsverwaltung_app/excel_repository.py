@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -15,8 +16,19 @@ class ExcelRepository:
     def __init__(self, workbook_path: Path) -> None:
         self.workbook_path = workbook_path
 
+    @staticmethod
+    def _load_workbook(*args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="Data Validation extension is not supported and will be removed",
+                category=UserWarning,
+                module=r"openpyxl\..*",
+            )
+            return load_workbook(*args, **kwargs)
+
     def load_lookups(self) -> LookupValues:
-        wb = load_workbook(self.workbook_path, data_only=True)
+        wb = self._load_workbook(self.workbook_path, data_only=True)
         ws = wb[SHEET_LOOKUPS]
         values: dict[str, list[str]] = {}
 
@@ -32,7 +44,7 @@ class ExcelRepository:
         return LookupValues(**values)
 
     def load_records(self) -> list[ApplicationRecord]:
-        wb = load_workbook(self.workbook_path, data_only=True)
+        wb = self._load_workbook(self.workbook_path, data_only=True)
         ws = wb[SHEET_OVERVIEW]
         records: list[ApplicationRecord] = []
 
@@ -56,7 +68,7 @@ class ExcelRepository:
         return records
 
     def add_record(self, payload: dict[str, Any]) -> None:
-        wb = load_workbook(self.workbook_path, data_only=False)
+        wb = self._load_workbook(self.workbook_path, data_only=False)
         ws = wb[SHEET_OVERVIEW]
 
         row = ws.max_row + 1
@@ -67,7 +79,7 @@ class ExcelRepository:
         wb.close()
 
     def update_record(self, row: int, updates: dict[str, Any]) -> None:
-        wb = load_workbook(self.workbook_path, data_only=False)
+        wb = self._load_workbook(self.workbook_path, data_only=False)
         ws = wb[SHEET_OVERVIEW]
 
         self._write_payload(ws, row, updates, partial=True)
