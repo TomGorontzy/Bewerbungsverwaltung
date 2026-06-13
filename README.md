@@ -1,62 +1,72 @@
 # Bewerbungsverwaltung (Python + Excel + GUI)
 
-Dieses Projekt erweitert die vorhandene Excel-Datei `Bewerbungsaktivitäten mit Erinnerungen.xlsx` um eine geführte Desktop-GUI.
+Desktop-Anwendung zur geführten Pflege einer bestehenden Excel-Arbeitsmappe für Bewerbungsprozesse.
 
-## Rubriken in der App
+Die App arbeitet auf Basis von `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx` und ergänzt eine strukturierte GUI für Erfassung, Nachfassen und Archivierung.
 
-- **Neue Bewerbungen**: strukturierte Erfassung mit Pflichtfeldern
-- **Nachzufassende Bewerbungen**: fällige Aktivitäten, direkte Status-Updates
-- **Erledigte Bewerbungen (Archiv)**: abgeschlossene Vorgänge
+> **Migrationshinweis:** Die Excel-Datei wurde vom Root-Verzeichnis in den Unterordner `data/` verschoben. Falls Sie ein bestehendes Setup aktualisieren, legen Sie die Arbeitsmappe bitte unter `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx` ab.
+
+## Funktionsüberblick
+
+- **Neue Bewerbungen**
+  - strukturierte Erfassung mit Pflichtfeldern
+  - Datumsauswahl mit Picker
+  - konsistente Dropdown-Werte aus Excel-`Hilfstabellen`
+- **Nachzufassende Bewerbungen**
+  - fällige/überfällige Einträge mit direkter Aktualisierung
+  - farbliche Hervorhebung je Überfälligkeit
+  - Legende als Statusleiste im Tab
+- **Erledigte Bewerbungen (Archiv)**
+  - abgeschlossene Vorgänge (z. B. Absage/Zusage) mit Filter/Sortierung
 
 ## Voraussetzungen
 
-- Windows mit Python 3.13 (virtuelle Umgebung `.venv`)
-- Vorhandene Excel-Datei im Projektordner:
-  - `Bewerbungsaktivitäten mit Erinnerungen.xlsx`
+- Windows
+- Python 3.13 (für Entwicklung)
+- Datei `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx` im Projektordner bzw. neben der EXE
 
-## Starten (Entwicklung)
+## Start (Entwicklung)
 
-- `python run.py`
+- `python src/run.py`
 
-## EXE bauen
+## EXE-Build
 
-- `./build_exe.ps1`
-- optional sauber neu: `./build_exe.ps1 -Clean`
+- `./src/build_exe.ps1`
+- optional Clean-Build: `./src/build_exe.ps1 -Clean`
 
-Danach liegt die Anwendung als `dist/Bewerbungsverwaltung.exe` vor.
+Ergebnis: `dist/Bewerbungsverwaltung.exe`
 
-Bei jedem Build wird automatisch eine Markdown-Lint/Fix-Routine ausgeführt.
+## Release-Erstellung
 
-## Release erstellen
+- `./src/release.ps1 -ReleaseVersion vX.Y.Z`
+- optional Clean-Release: `./src/release.ps1 -ReleaseVersion vX.Y.Z -Clean`
 
-- `./release.ps1 -ReleaseVersion v0.1.2`
-- optional sauber neu: `./release.ps1 -ReleaseVersion v0.1.2 -Clean`
-
-Der Release-Prozess führt automatisch aus:
+Der Release-Prozess umfasst u. a.:
 
 - Markdown-Lint/Fix
-- optionales Auto-Commit von Markdown-Korrekturen
 - EXE-Build
-- Tag-Erstellung und Push
-- GitHub Release mit EXE-Asset
+- Tag-Erstellung/Push
+- GitHub Release inkl. EXE-Asset
 
-Hinweis für PowerShell-Analyse:
+## Excel-Integration
 
-- `PSScriptAnalyzerSettings.psd1` deaktiviert gezielt die bekannte
-  False-Positive-Regel `PSPossibleIncorrectUsageOfRedirectionOperator`.
+Schreibziel ist `Bewerbungsübersicht`. Wichtige Excel-Mechaniken:
+
+- Formel-basierte Felder (u. a. Bewerbungs-ID, Erinnerungsdatum, „Heute erledigen?“)
+- Lookup-/Dropdown-Werte aus `Hilfstabellen`
+- Auto-Reparatur beim Start für:
+  - Summary-Formeln (`Heute erledigen`, `Diese Woche erledigen`)
+  - Datenvalidierungen
+  - bedingte Formatierungen
+
+Zusätzlich verfügbar:
+
+- Verwaltung des Katalogs **„Nächster Schritt“** direkt in der GUI
+  - Änderungen werden in `Hilfstabellen` gespeichert
+  - Dropdowns in GUI und Excel werden synchron gehalten
 
 ## Dokumentation
 
 - Anwenderdokumentation: `docs/DOKUMENTATION_ANWENDER.md`
 - Technische Dokumentation: `docs/DOKUMENTATION_TECHNIK.md`
 - FAQ: `docs/FAQ.md`
-
-## Hinweise zur Excel-Logik
-
-Die App schreibt in das Blatt **Bewerbungsübersicht** und übernimmt die bestehenden Formeln für:
-
-- Bewerbungs-ID
-- Erinnerungsdatum
-- Heute erledigen?
-
-Lookup-Werte (Dropdowns) werden aus `Hilfstabellen` gelesen.

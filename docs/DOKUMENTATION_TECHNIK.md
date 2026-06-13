@@ -5,10 +5,12 @@
 - [Projektüberblick](#projektüberblick)
 - [Repository-Struktur](#repository-struktur)
 - [Datenquelle und Blätter](#datenquelle-und-blätter)
-- [Fachlogik (MVP)](#fachlogik-mvp)
+- [Fachlogik](#fachlogik)
   - [Neue Bewerbungen](#neue-bewerbungen)
   - [Nachzufassen](#nachzufassen)
   - [Archiv](#archiv)
+- [GUI-Besonderheiten](#gui-besonderheiten)
+- [Workbook-Health-Check](#workbook-health-check)
 - [Entwicklung lokal](#entwicklung-lokal)
 - [Build (EXE)](#build-exe)
 - [CI](#ci)
@@ -26,30 +28,32 @@ Dieses Projekt stellt eine Desktop-GUI für eine bestehende Excel-basierte Bewer
 
 ## Repository-Struktur
 
-- `run.py` – Einstiegspunkt
+- `src/run.py` – Einstiegspunkt
 - `src/bewerbungsverwaltung_app/main.py` – App-Start
 - `src/bewerbungsverwaltung_app/gui.py` – GUI (Tabs, Events, Bedienlogik)
 - `src/bewerbungsverwaltung_app/excel_repository.py` – Excel-Lese-/Schreiblogik
 - `src/bewerbungsverwaltung_app/constants.py` – Feld-/Spaltenzuordnung, Kategorien
 - `src/bewerbungsverwaltung_app/models.py` – Datenmodelle
 - `src/bewerbungsverwaltung_app/utils.py` – Konvertierung (String/Datum)
-- `build_exe.ps1` – Build-Helfer für EXE
+- `src/build_exe.ps1` – Build-Helfer für EXE
 - `.github/workflows/ci.yml` – CI Smoke-Checks
 
 ## Datenquelle und Blätter
 
 Primäre Datei:
 
-- `Bewerbungsaktivitäten mit Erinnerungen.xlsx`
+- `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx`
 
 Relevante Blätter:
 
 - `Bewerbungsübersicht` (Master-Daten)
 - `Hilfstabellen` (Lookup-/Dropdown-Werte)
+- `Heute erledigen` (formelbasierte Sicht)
+- `Diese Woche erledigen` (formelbasierte Sicht)
 
-Andere Blätter wie `Heute erledigen` und `Diese Woche erledigen` werden als abgeleitete Sichten verstanden.
+Die Summary-Blätter werden als abgeleitete Sichten technisch repariert/neu aufgebaut, falls Formeln fehlen oder beschädigt sind.
 
-## Fachlogik (MVP)
+## Fachlogik
 
 ### Neue Bewerbungen
 
@@ -61,6 +65,11 @@ Setzt/übernimmt Formeln für:
 - Erinnerungsdatum (Spalte R)
 - Heute erledigen? (Spalte V)
 
+Zusätzlich:
+
+- Datumsfelder werden mit `dd.mm.yyyy` formatiert.
+- Bewerbungs-ID erhält bei fehlendem Formel-Cache eine Fallback-Bildung in der Lade-Logik.
+
 ### Nachzufassen
 
 Kategorisierung auf Basis von:
@@ -69,12 +78,35 @@ Kategorisierung auf Basis von:
 - Follow-up-Status älter als 14 Tage
 - Feld „Heute erledigen?“ = `ja`
 
+Erinnerungsdatum-Fallback:
+
+- Wenn `erinnerungsdatum` aus Excel (z. B. `data_only=True`) leer ist, wird für Follow-up-Status bei vorhandenem `status_datum` intern `status_datum + 14 Tage` verwendet.
+
 ### Archiv
 
 Archiviert (in GUI-Sicht), wenn:
 
 - Endergebnis gesetzt ist oder
 - Status in finaler Menge (`Absage`, `Zusage`) liegt
+
+## GUI-Besonderheiten
+
+- `ttk.Notebook` mit `clam`-Theme für reproduzierbares Tab-Styling unter Windows.
+- Follow-up- und Archiv-Listen mit horizontalem + vertikalem Scrollbar-Setup.
+- Filter mit Debounce.
+- Sortierung pro Spalte.
+- Farbliche Überfälligkeitsstufen in Follow-up-Listenzeilen.
+- Legende als Statusleiste im Follow-up-Tab.
+- Katalogverwaltung für `Nächster Schritt` (GUI-Dialog, Speicherung in Excel).
+
+## Workbook-Health-Check
+
+Beim Start führt `ExcelRepository.ensure_workbook_health()` Prüfungen/Reparaturen aus, insbesondere:
+
+- Summary-Formeln (`Heute erledigen`, `Diese Woche erledigen`)
+- Datenvalidierungen in `Bewerbungsübersicht`
+- bedingte Formatierungen in `Bewerbungsübersicht`
+- Seeden des Katalogs `Nächster Schritt` in `Hilfstabellen` (nur wenn leer)
 
 ## Entwicklung lokal
 
@@ -85,21 +117,23 @@ Voraussetzungen:
 
 Abhängigkeiten installieren:
 
-- `pip install -r requirements.txt`
+- `pip install -r src/requirements.txt`
 
 Starten:
 
-- `python run.py`
+- `python src/run.py`
+
+Hinweis: Für reproduzierbare Ergebnisse sollte die Excel-Datei während Schreibtests nicht parallel in Excel geöffnet sein.
 
 ## Build (EXE)
 
 Skript:
 
-- `./build_exe.ps1`
+- `./src/build_exe.ps1`
 
 Optional clean:
 
-- `./build_exe.ps1 -Clean`
+- `./src/build_exe.ps1 -Clean`
 
 Ausgabe:
 
@@ -122,6 +156,7 @@ Checks:
 - `openpyxl` kann Warnungen zu Data Validation Extensions ausgeben.
 - Bei OneDrive kann es temporär Dateisperren geben (insb. während Sync).
 - Bei EXE-Ausführung ist entscheidend, dass Excel-Datei und EXE im selben Verzeichnis liegen.
+- `data_only=True` liefert bei ungecachten Formeln ggf. leere Werte; relevante Felder besitzen deshalb Fallback-Logik.
 
 ## Erweiterungsvorschläge
 

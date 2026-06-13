@@ -9,13 +9,14 @@
   - [Neue Bewerbungen](#1-neue-bewerbungen)
   - [Nachzufassende Bewerbungen](#2-nachzufassende-bewerbungen)
   - [Erledigte Bewerbungen (Archiv)](#3-erledigte-bewerbungen-archiv)
+- [Farblogik in Nachzufassen](#farblogik-in-nachzufassen)
 - [Datensicherung](#datensicherung)
 - [Häufige Probleme](#häufige-probleme)
 - [Support-Hinweis](#support-hinweis)
 
 ## Zweck
 
-Die Anwendung **Bewerbungsverwaltung** unterstützt bei der strukturierten Pflege von Bewerbungsaktivitäten auf Basis der Datei `Bewerbungsaktivitäten mit Erinnerungen.xlsx`.
+Die Anwendung **Bewerbungsverwaltung** unterstützt bei der strukturierten Pflege von Bewerbungsaktivitäten auf Basis der Datei `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx`.
 
 Die GUI bietet drei Hauptbereiche:
 
@@ -23,13 +24,18 @@ Die GUI bietet drei Hauptbereiche:
 - **Nachzufassende Bewerbungen**
 - **Erledigte Bewerbungen (Archiv)**
 
+Zusätzlich enthält die Anwendung:
+
+- zentrale Schaltfläche `Daten neu laden`
+- verwaltbaren Dropdown-Katalog für **Nächster Schritt**
+
 ## Voraussetzungen
 
 - Windows-PC
 - Die Datei `Bewerbungsverwaltung.exe`
-- Die Excel-Datei `Bewerbungsaktivitäten mit Erinnerungen.xlsx`
+- Die Excel-Datei `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx`
 
-> Wichtig: EXE und Excel-Datei müssen im selben Ordner liegen.
+> Wichtig: Die Excel-Datei liegt im Unterordner `data` neben der EXE.
 
 ## Start der Anwendung
 
@@ -57,6 +63,12 @@ Ablauf:
 2. Dropdowns verwenden (einheitliche Werte)
 3. `Speichern` klicken
 
+Hinweis zu **Nächster Schritt**:
+
+- Das Feld ist als Dropdown hinterlegt.
+- Über den Button `Schritt-Katalog verwalten` kann die Liste gepflegt werden (hinzufügen, löschen, Reihenfolge ändern).
+- Änderungen wirken direkt in GUI und Excel-Dropdowns.
+
 Automatisch gesetzt durch Excel-Logik:
 
 - Bewerbungs-ID
@@ -67,6 +79,12 @@ Automatisch gesetzt durch Excel-Logik:
 
 Im Tab **Nachzufassende Bewerbungen** werden fällige Aktivitäten angezeigt.
 
+Möglichkeiten:
+
+- Filtern
+- Spaltenweise sortieren
+- Datensatz auswählen und unten aktualisieren (`Status`, `Kontaktart`, `Ergebnis Nachfrage`, `Nächster Schritt`, `Endergebnis`)
+
 Typische Aktion:
 
 1. Eintrag in der Liste auswählen
@@ -74,6 +92,21 @@ Typische Aktion:
 3. `Änderung speichern` klicken
 
 Empfehlung: Nach Telefonat/E-Mail direkt aktualisieren, damit Erinnerungen korrekt bleiben.
+
+Hinweis für die direkte Arbeit in Excel:
+
+- Nachzufassende Bewerbungen werden automatisch in den Tabellenblättern **Heute erledigen** und **Diese Woche erledigen** angezeigt.
+
+### Farblogik in Nachzufassen
+
+Überfällige Einträge werden in der Liste farblich hervorgehoben. Eine Legende ist als Statusleiste direkt im Tab sichtbar:
+
+- **1–2 Tage überfällig**: hellgelb
+- **3–6 Tage überfällig**: orange-beige
+- **7–13 Tage überfällig**: orange
+- **ab 14 Tagen überfällig**: hellrot
+
+Kein Farbhintergrund bedeutet: aktuell noch nicht überfällig.
 
 ### 3) Erledigte Bewerbungen (Archiv)
 
@@ -88,13 +121,23 @@ Hier erscheinen abgeschlossene Bewerbungen (z. B. Absage/Zusage oder gesetztes E
 
 ### Excel-Datei wird nicht gefunden
 
-- Prüfen, ob `Bewerbungsaktivitäten mit Erinnerungen.xlsx` im gleichen Ordner wie die EXE liegt.
+- Prüfen, ob `data/Bewerbungsaktivitäten mit Erinnerungen.xlsx` vorhanden ist.
 
 ### Speichern schlägt fehl / Datei gesperrt
 
 - Excel-Datei in Microsoft Excel schließen
 - OneDrive-Synchronisierung abwarten
 - Erneut speichern
+
+### Dropdown enthält erwarteten Wert nicht
+
+- In `Neue Bewerbungen` auf `Schritt-Katalog verwalten` klicken und den Wert ergänzen.
+- Alternativ prüfen, ob in Excel `Hilfstabellen` der Eintrag vorhanden ist.
+- Danach `Daten neu laden` nutzen.
+
+### Erinnerungsdatum wirkt leer/unerwartet
+
+Die Anwendung berücksichtigt Excel-Formeln und nutzt bei fehlendem Formel-Cache eine interne Fallback-Berechnung für Follow-up-Fälle. Nach Änderungen kann `Daten neu laden` helfen.
 
 ### SmartScreen blockiert Start
 
