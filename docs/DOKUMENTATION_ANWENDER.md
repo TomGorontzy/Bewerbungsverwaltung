@@ -1,5 +1,18 @@
 # DOKUMENTATION ANWENDER
 
+## Inhaltsverzeichnis
+
+- Zweck
+- Voraussetzungen
+- Start der Anwendung
+- Bedienung
+   - Neue Bewerbungen
+   - Nachzufassende Bewerbungen
+   - Erledigte Bewerbungen (Archiv)
+- Datensicherung
+- Häufige Probleme
+- Support-Hinweis
+
 ## Zweck
 
 Die Anwendung **Bewerbungsverwaltung** unterstützt bei der strukturierten Pflege von Bewerbungsaktivitäten auf Basis der Datei `Bewerbungsaktivitäten mit Erinnerungen.xlsx`.

@@ -1,5 +1,14 @@
 # FAQ
 
+## Inhaltsverzeichnis
+
+- Allgemein
+- Installation & Start
+- Dateneingabe
+- Probleme & Lösungen
+- Versionen & Updates
+- Support
+
 ## Allgemein
 
 ### Was macht die Anwendung?

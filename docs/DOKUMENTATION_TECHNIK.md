@@ -1,5 +1,20 @@
 # DOKUMENTATION TECHNIK
 
+## Inhaltsverzeichnis
+
+- Projektüberblick
+- Repository-Struktur
+- Datenquelle und Blätter
+- Fachlogik (MVP)
+	- Neue Bewerbungen
+	- Nachzufassen
+	- Archiv
+- Entwicklung lokal
+- Build (EXE)
+- CI
+- Bekannte technische Hinweise
+- Erweiterungsvorschläge
+
 ## Projektüberblick
 
 Dieses Projekt stellt eine Desktop-GUI für eine bestehende Excel-basierte Bewerbungsverwaltung bereit.
