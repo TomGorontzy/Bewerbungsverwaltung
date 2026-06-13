@@ -14,6 +14,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: PowerShell script analysis
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber
+          $settingsPath = Join-Path $PWD 'PSScriptAnalyzerSettings.psd1'
+          $targets = @('build_exe.ps1', 'release.ps1', 'scripts')
+          $results = Invoke-ScriptAnalyzer -Path $targets -Recurse -Settings $settingsPath
+          if ($results.Count -gt 0) {
+            $results |
+              Select-Object Severity, RuleName, ScriptName, Line, Message |
+              Sort-Object Severity, ScriptName, Line |
+              Format-Table -AutoSize |
+              Out-String |
+              Write-Host
+            throw "PSScriptAnalyzer hat $($results.Count) Findings gemeldet."
+          }
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
