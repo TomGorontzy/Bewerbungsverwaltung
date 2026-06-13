@@ -158,11 +158,16 @@ Write-Host "[Release] Tag mit Versionsinformationen erstellt" -ForegroundColor G
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
 
 # Release-Notes mit Zusammenfassung vorbereiten
-$notesFile = Join-Path $projectRoot "release-notes-$ReleaseVersion.tmp"
+$notesFileName = "RELEASE_NOTES_$ReleaseVersion.md"
+$notesFile = Join-Path $releasesDir $notesFileName
 $notesContent = @"
-## Zusammenfassung (DE)
+# RELEASE NOTES $ReleaseVersion
 
-Dieses Release beinhaltet:
+## Kurzüberblick
+
+Dieses Release enthält die seit dem vorherigen Tag übernommenen Änderungen.
+
+## Enthaltene Änderungen
 
 "@
 
@@ -205,24 +210,54 @@ foreach ($commit in $allCommits) {
     }
 }
 
-# Zusammenfassung füllen
+# Abschnitt "Enthaltene Änderungen" füllen
+$hasCategorizedEntries = $false
 foreach ($typeKey in @('fix:', 'feature:', 'release:', 'docs:', 'chore:', 'refactor:', 'ci:', 'other')) {
     if ($categorized.ContainsKey($typeKey) -and $categorized[$typeKey].Count -gt 0) {
         $label = if ($typeKey -eq 'other') { 'Sonstiges' } else { $commitTypes[$typeKey] }
-        $notesContent += "`n- $label`n"
+        $notesContent += "`n### $label`n"
         foreach ($msg in $categorized[$typeKey]) {
-            $notesContent += "  - $msg`n"
+            $notesContent += "- $msg`n"
+        }
+        $hasCategorizedEntries = $true
+    }
+}
+
+if (-not $hasCategorizedEntries) {
+    $notesContent += "`n- Keine kategorisierbaren Änderungen gefunden.`n"
+}
+
+$notesContent += "`n## Commit-Übersicht`n`n"
+if ($allCommits.Count -gt 0) {
+    foreach ($commit in $allCommits) {
+        $parts = $commit -split '\s+', 2
+        if ($parts.Count -eq 2) {
+            $notesContent += "- ``$($parts[0])`` $($parts[1])`n"
+        } else {
+            $notesContent += "- $commit`n"
         }
     }
+} else {
+    $notesContent += "- Keine Commits im Vergleichszeitraum gefunden.`n"
 }
 
 $notesContent += @"
 
+## Breaking Changes
+
+- Keine bekannten Breaking Changes.
+
+## Migrationshinweise
+
+- Keine Migration erforderlich.
+
+## Known Issues
+
+- Keine neuen bekannten Probleme in diesem Release dokumentiert.
+
 ## Hinweise
 
-- Dieser Release fokussiert auf Prozess- und Tooling-Qualität.
-- Stabilisierung der Release-/Build-Pipeline mit automatischer Markdown-Lint-Bereinigung.
-- Verbesserungen für größere Teams und reproduzierbare Abläufe.
+- Diese Datei wurde automatisch durch `src/release.ps1` erzeugt.
 
 ---
 
@@ -231,15 +266,13 @@ Weitere Details unter: [Changelog](https://github.com/TomGorontzy/Bewerbungsverw
 
 # Notes-Datei schreiben
 [System.IO.File]::WriteAllText($notesFile, $notesContent, [System.Text.UTF8Encoding]::new($false))
-Write-Host "[Release] Release-Notes mit Zusammenfassung erstellt" -ForegroundColor Green
+Write-Host "[Release] Release-Notes mit Zusammenfassung erstellt: releases/$notesFileName" -ForegroundColor Green
 
 # GitHub Release mit Notes-Datei erstellen
 $releaseArgs = @('release', 'create', $ReleaseVersion, $zipPath, '--title', $ReleaseVersion, '--notes-file', $notesFile)
 & gh @releaseArgs
 
-# Aufräumen
-Remove-Item $notesFile -Force
-
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
 Write-Host "[Release] Lokal gespeichert: releases/$zipName" -ForegroundColor DarkCyan
+Write-Host "[Release] Release-Notes gespeichert: releases/$notesFileName" -ForegroundColor DarkCyan
 Write-Host "[Release] GitHub Release: https://github.com/TomGorontzy/Bewerbungsverwaltung/releases/tag/$ReleaseVersion" -ForegroundColor Cyan
