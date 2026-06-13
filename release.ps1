@@ -58,10 +58,9 @@ $pushTagArgs = @('push', 'origin', $ReleaseVersion)
 & git @pushTagArgs
 
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
-$releaseArgs = @('release', 'create', $ReleaseVersion, '--title', $ReleaseVersion, '--generate-notes')
 
-# Assets sammeln
-$assets = @(
+# Assets sammeln und prüfen
+$assetPaths = @(
     'dist/Bewerbungsverwaltung.exe',
     'Bewerbungsaktivitäten mit Erinnerungen.xlsx',
     'docs/DOKUMENTATION_ANWENDER.md',
@@ -70,14 +69,20 @@ $assets = @(
     'README.md'
 )
 
-foreach ($asset in $assets) {
+$validAssets = @()
+foreach ($asset in $assetPaths) {
     if (Test-Path $asset) {
-        $releaseArgs += $asset
+        $validAssets += $asset
     } else {
         Write-Host "[Release] ⚠ Asset nicht gefunden: $asset" -ForegroundColor Yellow
     }
 }
 
+Write-Host "[Release] $($validAssets.Count) Assets für Release vorbereitet:" -ForegroundColor Cyan
+$validAssets | ForEach-Object { Write-Host "  - $_" -ForegroundColor DarkCyan }
+
+# Release mit Assets erstellen (Leerzeichen in Pfaden werden durch @() handled)
+$releaseArgs = @('release', 'create', $ReleaseVersion, '--title', $ReleaseVersion, '--generate-notes') + $validAssets
 & gh @releaseArgs
 
 Write-Host "[Release] Fertig: $ReleaseVersion" -ForegroundColor Green
