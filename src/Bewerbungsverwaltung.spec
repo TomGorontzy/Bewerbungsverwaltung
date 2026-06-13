@@ -7,7 +7,7 @@ SRC = ROOT / 'src'
 
 
 a = Analysis(
-    [str(ROOT / 'run.py')],
+    [str(ROOT / 'src' / 'run.py')],
     pathex=[str(SRC)],
     binaries=[],
     datas=[],

@@ -5,8 +5,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $root
+$srcRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Split-Path -Parent $srcRoot
+Set-Location $projectRoot
 
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 [Console]::InputEncoding = $utf8
@@ -18,7 +19,7 @@ if ($ReleaseVersion -notmatch '^v\d+\.\d+\.\d+$') {
 }
 
 Write-Host "[Release] Markdown-Lintfix ausführen ..." -ForegroundColor Cyan
-& "$root\scripts\markdown_lint_fix.ps1"
+& "$srcRoot\scripts\markdown_lint_fix.ps1"
 
 $statusArgs = @('status', '--porcelain')
 $mdChanges = @((& git @statusArgs) | Where-Object { $_ -imatch '\.(md|markdown|mdown|mkd)$' })
@@ -46,15 +47,15 @@ if ($mdChanges.Count -gt 0) {
 
 Write-Host "[Release] EXE bauen ..." -ForegroundColor Cyan
 if ($Clean) {
-    & "$root\build_exe.ps1" -Clean
+    & "$srcRoot\build_exe.ps1" -Clean
 } else {
-    & "$root\build_exe.ps1"
+    & "$srcRoot\build_exe.ps1"
 }
 
 Write-Host "[Release] ZIP-Archiv erstellen ..." -ForegroundColor Cyan
 
 # Releases-Verzeichnis vorbereiten
-$releasesDir = Join-Path $root 'releases'
+$releasesDir = Join-Path $projectRoot 'releases'
 if (!(Test-Path $releasesDir)) {
     New-Item $releasesDir -ItemType Directory -Force | Out-Null
     Write-Host "[Release] Releases-Verzeichnis erstellt: $releasesDir" -ForegroundColor DarkGreen
@@ -63,7 +64,7 @@ if (!(Test-Path $releasesDir)) {
 # ZIP vorbereiten
 $zipName = "Bewerbungsverwaltung-${ReleaseVersion}.zip"
 $zipPath = Join-Path $releasesDir $zipName
-$tempDir = Join-Path $root "release-temp"
+$tempDir = Join-Path $projectRoot "release-temp"
 if (Test-Path $tempDir) {
     Remove-Item $tempDir -Recurse -Force
 }
@@ -72,7 +73,6 @@ New-Item $tempDir -ItemType Directory | Out-Null
 # Dateien ins temp-Verzeichnis kopieren
 @(
     'dist/Bewerbungsverwaltung.exe',
-    'Bewerbungsaktivitäten mit Erinnerungen.xlsx',
     'README.md'
 ) | ForEach-Object {
     if (Test-Path $_) {
@@ -81,17 +81,25 @@ New-Item $tempDir -ItemType Directory | Out-Null
     }
 }
 
+# Excel-Datei unter data/ bereitstellen
+$dataSource = Join-Path $projectRoot 'data\Bewerbungsaktivitäten mit Erinnerungen.xlsx'
+$dataDestDir = Join-Path $tempDir 'data'
+if (Test-Path $dataSource) {
+    New-Item $dataDestDir -ItemType Directory -Force | Out-Null
+    Copy-Item $dataSource $dataDestDir -Force
+    Write-Host "  + data/Bewerbungsaktivitäten mit Erinnerungen.xlsx" -ForegroundColor DarkGreen
+} else {
+    throw "Excel-Datei nicht gefunden: $dataSource"
+}
+
 # Docs-Verzeichnis mit allen Markdown-Dateien
-$docsSource = Join-Path $root 'docs'
+$docsSource = Join-Path $projectRoot 'docs'
 $docsDest = Join-Path $tempDir 'docs'
 if (Test-Path $docsSource) {
     New-Item $docsDest -ItemType Directory -Force | Out-Null
-    @('DOKUMENTATION_ANWENDER.md', 'DOKUMENTATION_TECHNIK.md', 'FAQ.md') | ForEach-Object {
-        $docFile = Join-Path $docsSource $_
-        if (Test-Path $docFile) {
-            Copy-Item $docFile $docsDest -Force
-            Write-Host "  + docs/$_" -ForegroundColor DarkGreen
-        }
+    Get-ChildItem -Path $docsSource -Filter '*.md' -File | ForEach-Object {
+        Copy-Item $_.FullName $docsDest -Force
+        Write-Host "  + docs/$($_.Name)" -ForegroundColor DarkGreen
     }
 }
 
@@ -108,7 +116,10 @@ Remove-Item $tempDir -Recurse -Force
 # (Nach Tag-Erstellung würde git describe das neue Tag zurückgeben)
 Write-Host "[Release] Commits für Tag-Nachricht und Release-Notes vorbereiten ..." -ForegroundColor Cyan
 
-$previousTag = $(git describe --tags --abbrev=0 2>$null) || "v0.0.0"
+$previousTag = (& git describe --tags --abbrev=0 2>$null)
+if ([string]::IsNullOrWhiteSpace($previousTag)) {
+    $previousTag = "v0.0.0"
+}
 $allCommits = @(git log "$previousTag..HEAD" --oneline 2>$null)
 $commitCount = $allCommits.Count
 
@@ -147,7 +158,7 @@ Write-Host "[Release] Tag mit Versionsinformationen erstellt" -ForegroundColor G
 Write-Host "[Release] GitHub Release erstellen ..." -ForegroundColor Cyan
 
 # Release-Notes mit Zusammenfassung vorbereiten
-$notesFile = Join-Path $root "release-notes-$ReleaseVersion.tmp"
+$notesFile = Join-Path $projectRoot "release-notes-$ReleaseVersion.tmp"
 $notesContent = @"
 ## Zusammenfassung (DE)
 
@@ -172,9 +183,8 @@ foreach ($commit in $allCommits) {
     # Format: <hash> <type>: <message>
     $parts = $commit -split '\s+', 2
     if ($parts.Count -eq 2) {
-        $hash = $parts[0]
         $message = $parts[1]
-        
+
         $found = $false
         foreach ($typeKey in $commitTypes.Keys) {
             if ($message -imatch "^$([regex]::Escape($typeKey))") {

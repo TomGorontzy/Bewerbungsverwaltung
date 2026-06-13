@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from copy import copy, deepcopy
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +11,15 @@ from openpyxl.formatting.rule import Rule
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .constants import ARCHIVE_STATUS, FIELD_ORDER, FOLLOW_UP_STATUS, LOOKUP_COLUMNS, SHEET_LOOKUPS, SHEET_OVERVIEW
+from .constants import (
+    ARCHIVE_STATUS,
+    DEFAULT_NAECHSTER_SCHRITT_CATALOG,
+    FIELD_ORDER,
+    FOLLOW_UP_STATUS,
+    LOOKUP_COLUMNS,
+    SHEET_LOOKUPS,
+    SHEET_OVERVIEW,
+)
 from .models import ApplicationRecord, LookupValues
 from .utils import as_date, as_str, today
 
@@ -27,6 +35,7 @@ LOOKUP_FIELD_TO_OVERVIEW_COLUMN = {
     "art_bewerbung": FIELD_ORDER["art_bewerbung"],
     "status": FIELD_ORDER["status"],
     "art_kontaktaufnahme": FIELD_ORDER["art_kontaktaufnahme"],
+    "naechster_schritt": FIELD_ORDER["naechster_schritt"],
     "prioritaet": FIELD_ORDER["prioritaet"],
     "endergebnis": FIELD_ORDER["endergebnis"],
     "quelle": FIELD_ORDER["quelle"],
@@ -96,6 +105,9 @@ class ExcelRepository:
             if not values["bewerbungs_id"]:
                 values["bewerbungs_id"] = self._build_bewerbungs_id(row, values.get("datum_bewerbung"))
 
+            if not values["erinnerungsdatum"] and values["status"] in FOLLOW_UP_STATUS and values["status_datum"] is not None:
+                values["erinnerungsdatum"] = values["status_datum"] + timedelta(days=14)
+
             records.append(ApplicationRecord(**values))
 
         wb.close()
@@ -104,7 +116,10 @@ class ExcelRepository:
     def ensure_workbook_health(self) -> None:
         """Prüft beim Start, ob Restauration nötig ist, und führt diese durch."""
         wb = self._load_workbook(self.workbook_path, data_only=False)
+        catalog_changed = self._ensure_default_naechster_schritt_catalog(wb)
         needs_repair = (
+            catalog_changed
+            or
             self._needs_data_validation_repair(wb)
             or self._needs_cf_repair(wb)
             or self._needs_summary_formula_repair(wb)
@@ -142,6 +157,7 @@ class ExcelRepository:
         row = ws.max_row + 1
         self._write_payload(ws, row, payload)
         self._apply_default_formulas(ws, row)
+        self._ensure_default_naechster_schritt_catalog(wb)
         self._repair_summary_sheet_formulas(wb)
         self._repair_overview_data_validations(wb)
         self._repair_overview_conditional_formatting(wb)
@@ -155,10 +171,45 @@ class ExcelRepository:
 
         self._write_payload(ws, row, updates, partial=True)
         self._apply_default_formulas(ws, row)
+        self._ensure_default_naechster_schritt_catalog(wb)
         self._repair_summary_sheet_formulas(wb)
         self._repair_overview_data_validations(wb)
         self._repair_overview_conditional_formatting(wb)
 
+        wb.save(self.workbook_path)
+        wb.close()
+
+    def save_naechster_schritt_catalog(self, items: list[str]) -> None:
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in items:
+            value = as_str(item)
+            if not value:
+                continue
+            marker = value.casefold()
+            if marker in seen:
+                continue
+            cleaned.append(value)
+            seen.add(marker)
+
+        if not cleaned:
+            raise ValueError("Der Katalog darf nicht leer sein.")
+
+        wb = self._load_workbook(self.workbook_path, data_only=False)
+        if SHEET_LOOKUPS not in wb.sheetnames or "naechster_schritt" not in LOOKUP_COLUMNS:
+            wb.close()
+            raise KeyError("Hilfstabellen oder Lookup-Spalte für 'Nächster Schritt' fehlt.")
+
+        ws = wb[SHEET_LOOKUPS]
+        column_letter = LOOKUP_COLUMNS["naechster_schritt"]
+
+        for row in range(2, max(ws.max_row, SUMMARY_MAX_ROW) + 1):
+            ws[f"{column_letter}{row}"] = None
+
+        for idx, value in enumerate(cleaned, start=2):
+            ws[f"{column_letter}{idx}"] = value
+
+        self._repair_overview_data_validations(wb)
         wb.save(self.workbook_path)
         wb.close()
 
@@ -251,6 +302,34 @@ class ExcelRepository:
             if as_str(ws[f"{column_letter}{row}"].value):
                 return row
         return 1
+
+    @staticmethod
+    def _ensure_default_naechster_schritt_catalog(wb) -> bool:
+        if SHEET_LOOKUPS not in wb.sheetnames or "naechster_schritt" not in LOOKUP_COLUMNS:
+            return False
+
+        ws = wb[SHEET_LOOKUPS]
+        column_letter = LOOKUP_COLUMNS["naechster_schritt"]
+        existing_values: list[str] = []
+
+        for row in range(2, max(ws.max_row, 2) + 1):
+            value = as_str(ws[f"{column_letter}{row}"].value)
+            if value:
+                existing_values.append(value)
+
+        if existing_values:
+            return False
+
+        last_row = ExcelRepository._find_last_lookup_row(ws, column_letter)
+        next_row = max(2, last_row + 1)
+        changed = False
+
+        for item in DEFAULT_NAECHSTER_SCHRITT_CATALOG:
+            ws[f"{column_letter}{next_row}"] = item
+            next_row += 1
+            changed = True
+
+        return changed
 
     @staticmethod
     def _repair_overview_conditional_formatting(wb) -> None:

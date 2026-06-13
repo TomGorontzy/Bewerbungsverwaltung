@@ -19,8 +19,8 @@ jobs:
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber
-          $settingsPath = Join-Path $PWD 'PSScriptAnalyzerSettings.psd1'
-          $targets = @('build_exe.ps1', 'release.ps1', 'scripts')
+          $settingsPath = Join-Path $PWD 'src/PSScriptAnalyzerSettings.psd1'
+          $targets = @('src/build_exe.ps1', 'src/release.ps1', 'src/scripts')
           $results = Invoke-ScriptAnalyzer -Path $targets -Recurse -Settings $settingsPath
           if ($results.Count -gt 0) {
             $results |
@@ -40,16 +40,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r src/requirements.txt
 
       - name: Markdown auto-fix and lint check
         shell: pwsh
         run: |
-          ./scripts/markdown_lint_fix.ps1
+          ./src/scripts/markdown_lint_fix.ps1
 
       - name: Syntax check
         run: |
-          python -m py_compile run.py
+          python -m py_compile src/run.py
           python -m py_compile src/bewerbungsverwaltung_app/main.py
           python -m py_compile src/bewerbungsverwaltung_app/gui.py
           python -m py_compile src/bewerbungsverwaltung_app/excel_repository.py
@@ -60,4 +60,4 @@ jobs:
       - name: Excel smoke test
         shell: pwsh
         run: |
-          python -c "import sys; from pathlib import Path; root=Path('.').resolve(); sys.path.insert(0, str(root/'src')); from bewerbungsverwaltung_app.excel_repository import ExcelRepository; p=root/'Bewerbungsaktivitäten mit Erinnerungen.xlsx'; repo=ExcelRepository(p); lookups=repo.load_lookups(); records=repo.load_records(); fu, ar=repo.categorize_records(records); assert len(lookups.status) > 0; assert isinstance(records, list); print(f'Records={len(records)}, FollowUp={len(fu)}, Archive={len(ar)}')"
+          python -c "import sys; from pathlib import Path; root=Path('.').resolve(); sys.path.insert(0, str(root/'src')); from bewerbungsverwaltung_app.excel_repository import ExcelRepository; p=root/'data'/'Bewerbungsaktivitäten mit Erinnerungen.xlsx'; repo=ExcelRepository(p); lookups=repo.load_lookups(); records=repo.load_records(); fu, ar=repo.categorize_records(records); assert len(lookups.status) > 0; assert isinstance(records, list); print(f'Records={len(records)}, FollowUp={len(fu)}, Archive={len(ar)}')"

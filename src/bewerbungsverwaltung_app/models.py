@@ -41,3 +41,4 @@ class LookupValues:
     prioritaet: list[str]
     endergebnis: list[str]
     quelle: list[str]
+    naechster_schritt: list[str]

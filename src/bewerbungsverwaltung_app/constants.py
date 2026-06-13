@@ -40,7 +40,21 @@ LOOKUP_COLUMNS = {
     "prioritaet": "I",
     "endergebnis": "K",
     "quelle": "M",
+    "naechster_schritt": "O",
 }
+
+DEFAULT_NAECHSTER_SCHRITT_CATALOG = [
+    "Unterlagen prüfen und ergänzen",
+    "Eingang der Bewerbung bestätigen lassen",
+    "Freundliche Nachfrage per E-Mail senden",
+    "Telefonisches Follow-up durchführen",
+    "Interviewtermin abstimmen",
+    "Interview vorbereiten",
+    "Interview nachbereiten und bedanken",
+    "Zusätzliche Unterlagen nachreichen",
+    "Finale Rückmeldung anfordern",
+    "Bewerbung abschließen und dokumentieren",
+]
 
 ARCHIVE_STATUS = {"Absage", "Zusage"}
 FOLLOW_UP_STATUS = {"Bewerbung versendet", "Eingangsbestätigung", "Rückmeldung ausstehend"}

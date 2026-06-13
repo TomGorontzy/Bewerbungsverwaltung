@@ -8,6 +8,7 @@ from pathlib import Path
 from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
+from .constants import ARCHIVE_STATUS
 from .excel_repository import ExcelRepository
 from .models import ApplicationRecord, LookupValues
 from .utils import as_date
@@ -16,7 +17,10 @@ from .utils import as_date
 class BewerbungsverwaltungApp:
     def __init__(self, workbook_path: Path) -> None:
         self.workbook_path = workbook_path
-        self.app_dir = workbook_path.parent
+        if workbook_path.parent.name.lower() == "data":
+            self.app_dir = workbook_path.parent.parent
+        else:
+            self.app_dir = workbook_path.parent
         self.repo = ExcelRepository(workbook_path)
         self.repo.ensure_workbook_health()
         self.lookups: LookupValues = self.repo.load_lookups()
@@ -25,24 +29,46 @@ class BewerbungsverwaltungApp:
         self.root.title("Bewerbungsverwaltung")
         self.root.geometry("1250x860")
         self.root.minsize(1100, 820)
+        self.fullscreen_var = tk.BooleanVar(value=False)
+        self._set_startup_fullscreen()
 
         self.records: list[ApplicationRecord] = []
         self.follow_up_records: list[ApplicationRecord] = []
         self.archive_records: list[ApplicationRecord] = []
+        self.active_records: list[ApplicationRecord] = []
 
         self.form_vars: dict[str, tk.StringVar] = {}
+        self.form_widgets: dict[str, tk.Widget] = {}
         self.update_vars: dict[str, tk.StringVar] = {}
         self.update_widgets: dict[str, tk.Widget] = {}
+        self.active_update_vars: dict[str, tk.StringVar] = {}
+        self.active_update_widgets: dict[str, tk.Widget] = {}
 
         self.follow_filter_var = tk.StringVar()
         self.archive_filter_var = tk.StringVar()
+        self.active_filter_var = tk.StringVar()
         self.filter_debounce_ms = 150
         self.follow_filter_after_id: str | None = None
         self.archive_filter_after_id: str | None = None
+        self.active_filter_after_id: str | None = None
         self.follow_sort_column = "erinnerung"
         self.follow_sort_desc = False
         self.archive_sort_column = "status_datum"
         self.archive_sort_desc = True
+        self.active_sort_column = "datum"
+        self.active_sort_desc = True
+        self.follow_overdue_thresholds = [
+            (14, "overdue_critical"),
+            (7, "overdue_high"),
+            (3, "overdue_medium"),
+            (1, "overdue_low"),
+        ]
+        self.follow_overdue_legend = [
+            ("overdue_low", "1–2 Tage überfällig", "#fff7cc"),
+            ("overdue_medium", "3–6 Tage überfällig", "#ffe7bf"),
+            ("overdue_high", "7–13 Tage überfällig", "#ffd5bf"),
+            ("overdue_critical", "ab 14 Tagen überfällig", "#ffc7c7"),
+        ]
         self.status_var = tk.StringVar(value="Bereit")
         self.reload_button: ttk.Button | None = None
 
@@ -52,6 +78,24 @@ class BewerbungsverwaltungApp:
 
     def run(self) -> None:
         self.root.mainloop()
+
+    def _set_startup_fullscreen(self) -> None:
+        try:
+            self.root.state("zoomed")
+            return
+        except tk.TclError:
+            pass
+
+        try:
+            self.root.attributes("-zoomed", True)
+            return
+        except tk.TclError:
+            pass
+
+        self.root.update_idletasks()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
 
     def _set_busy_cursor(self, busy: bool) -> None:
         self.root.config(cursor="watch" if busy else "")
@@ -65,6 +109,7 @@ class BewerbungsverwaltungApp:
 
     def _build_ui(self) -> None:
         self._configure_treeview_styles()
+        self._configure_window_mode_controls()
 
         header = ttk.Frame(self.root, padding=12)
         header.pack(fill="x")
@@ -87,16 +132,50 @@ class BewerbungsverwaltungApp:
         notebook.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self.tab_new = ttk.Frame(notebook, padding=12)
+        self.tab_active = ttk.Frame(notebook, padding=12)
         self.tab_follow_up = ttk.Frame(notebook, padding=12)
         self.tab_archive = ttk.Frame(notebook, padding=12)
 
         notebook.add(self.tab_new, text="Neue Bewerbungen")
+        notebook.add(self.tab_active, text="Laufende Bewerbungen")
         notebook.add(self.tab_follow_up, text="Nachzufassende Bewerbungen")
         notebook.add(self.tab_archive, text="Erledigte Bewerbungen (Archiv)")
 
         self._build_new_tab()
+        self._build_active_tab()
         self._build_follow_up_tab()
         self._build_archive_tab()
+
+    def _configure_window_mode_controls(self) -> None:
+        menubar = tk.Menu(self.root)
+        view_menu = tk.Menu(menubar, tearoff=False)
+        view_menu.add_checkbutton(
+            label="Echter Vollbildmodus (F11)",
+            variable=self.fullscreen_var,
+            command=self._toggle_true_fullscreen,
+        )
+        view_menu.add_command(label="Vollbild verlassen (Esc)", command=lambda: self._set_true_fullscreen(False))
+        menubar.add_cascade(label="Ansicht", menu=view_menu)
+        self.root.config(menu=menubar)
+
+        self.root.bind("<F11>", self._toggle_true_fullscreen)
+        self.root.bind("<Escape>", self._exit_true_fullscreen)
+
+    def _toggle_true_fullscreen(self, _event: tk.Event | None = None) -> str:
+        self._set_true_fullscreen(not self.fullscreen_var.get())
+        return "break"
+
+    def _exit_true_fullscreen(self, _event: tk.Event | None = None) -> str:
+        if self.fullscreen_var.get():
+            self._set_true_fullscreen(False)
+            return "break"
+        return ""
+
+    def _set_true_fullscreen(self, enabled: bool) -> None:
+        self.root.attributes("-fullscreen", enabled)
+        self.fullscreen_var.set(enabled)
+        if not enabled:
+            self._set_startup_fullscreen()
 
     def _configure_treeview_styles(self) -> None:
         style = ttk.Style(self.root)
@@ -161,7 +240,7 @@ class BewerbungsverwaltungApp:
             ("status", "Aktueller Status *", "combo", self.lookups.status),
             ("status_datum", "Status-Datum", "date"),
             ("prioritaet", "Priorität", "combo", self.lookups.prioritaet),
-            ("naechster_schritt", "Nächster Schritt", "entry"),
+            ("naechster_schritt", "Nächster Schritt", "combo", [""] + self.lookups.naechster_schritt),
             ("notizen", "Notizen", "entry"),
         ]
 
@@ -183,6 +262,7 @@ class BewerbungsverwaltungApp:
             else:
                 widget = ttk.Entry(self.tab_new, textvariable=var, width=47)
 
+            self.form_widgets[key] = widget
             widget.grid(row=row, column=1, sticky="ew", pady=6)
 
         buttons = ttk.Frame(self.tab_new)
@@ -190,6 +270,12 @@ class BewerbungsverwaltungApp:
 
         ttk.Button(buttons, text="Speichern", command=self._save_new_record, width=18).pack(side="left", padx=(0, 10))
         ttk.Button(buttons, text="Formular leeren", command=self._reset_form, width=18).pack(side="left")
+        ttk.Button(
+            buttons,
+            text="Schritt-Katalog verwalten",
+            command=self._open_naechster_schritt_catalog_dialog,
+            width=28,
+        ).pack(side="left", padx=(10, 0))
 
     def _build_documentation_buttons(self, parent: ttk.Frame) -> None:
         docs_frame = ttk.Frame(parent)
@@ -214,23 +300,35 @@ class BewerbungsverwaltungApp:
         ).pack(side="left", padx=4)
 
     def _build_date_input(self, parent: ttk.Frame, var: tk.StringVar, field_key: str) -> ttk.Frame:
+        return self._build_date_input_with_callback(
+            parent=parent,
+            var=var,
+            on_select=lambda selected_date: self._set_form_date(field_key, selected_date),
+        )
+
+    def _build_date_input_with_callback(
+        self,
+        parent: ttk.Frame,
+        var: tk.StringVar,
+        on_select,
+    ) -> ttk.Frame:
         frame = ttk.Frame(parent)
         frame.columnconfigure(0, weight=0)
         entry = ttk.Entry(frame, textvariable=var, width=16, state="readonly", cursor="hand2")
         entry.grid(row=0, column=0, sticky="w")
-        entry.bind("<Button-1>", lambda _event: self._open_date_picker(field_key))
-        entry.bind("<Return>", lambda _event: self._open_date_picker(field_key))
-        entry.bind("<space>", lambda _event: self._open_date_picker(field_key))
+        entry.bind("<Button-1>", lambda _event: self._open_date_picker_for_var(var, on_select))
+        entry.bind("<Return>", lambda _event: self._open_date_picker_for_var(var, on_select))
+        entry.bind("<space>", lambda _event: self._open_date_picker_for_var(var, on_select))
         ttk.Button(
             frame,
             text="Wählen",
-            command=lambda: self._open_date_picker(field_key),
+            command=lambda: self._open_date_picker_for_var(var, on_select),
             width=10,
         ).grid(row=0, column=1, padx=(8, 0), sticky="w")
         ttk.Button(
             frame,
             text="Heute",
-            command=lambda: self._set_form_date(field_key, date.today()),
+            command=lambda: on_select(date.today()),
             width=8,
         ).grid(row=0, column=2, padx=(8, 0), sticky="w")
         ttk.Button(frame, text="Leeren", command=lambda: var.set(""), width=8).grid(row=0, column=3, padx=(8, 0), sticky="w")
@@ -244,7 +342,13 @@ class BewerbungsverwaltungApp:
             self.form_vars["status_datum"].set(formatted)
 
     def _open_date_picker(self, field_key: str) -> None:
-        current_value = as_date(self.form_vars[field_key].get().strip()) or date.today()
+        self._open_date_picker_for_var(
+            self.form_vars[field_key],
+            lambda selected_date: self._set_form_date(field_key, selected_date),
+        )
+
+    def _open_date_picker_for_var(self, var: tk.StringVar, on_select) -> None:
+        current_value = as_date(var.get().strip()) or date.today()
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Datum auswählen")
@@ -284,7 +388,7 @@ class BewerbungsverwaltungApp:
                 messagebox.showerror("Ungültiges Datum", "Bitte ein gültiges Datum auswählen.", parent=dialog)
                 return
 
-            self._set_form_date(field_key, selected)
+            on_select(selected)
             dialog.destroy()
 
         buttons = ttk.Frame(container)
@@ -317,6 +421,279 @@ class BewerbungsverwaltungApp:
         except OSError as exc:
             messagebox.showerror("Öffnen fehlgeschlagen", f"Dokumentation konnte nicht geöffnet werden:\n{exc}")
 
+    def _build_active_tab(self) -> None:
+        self.tab_active.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            self.tab_active,
+            text="Alle laufenden Bewerbungen ohne Endergebnis, sortiert nach Datum der Bewerbung.",
+        ).pack(anchor="w", pady=(0, 8))
+
+        active_filter_box = ttk.Frame(self.tab_active)
+        active_filter_box.pack(fill="x", pady=(0, 8))
+        ttk.Label(active_filter_box, text="Filter:").pack(side="left", padx=(0, 8))
+        active_filter_entry = ttk.Entry(active_filter_box, textvariable=self.active_filter_var, width=48)
+        active_filter_entry.pack(side="left", padx=(0, 8))
+        active_filter_entry.bind("<KeyRelease>", lambda _event: self._schedule_active_filter_render())
+        ttk.Button(active_filter_box, text="Zurücksetzen", command=self._reset_active_filter, width=12).pack(side="left")
+
+        columns = ("id", "unternehmen", "position", "datum", "status", "prioritaet", "schritt")
+        active_tree_frame = ttk.Frame(self.tab_active)
+        active_tree_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        self.active_tree = ttk.Treeview(
+            active_tree_frame,
+            columns=columns,
+            show="headings",
+            height=10,
+            style="Readable.Treeview",
+        )
+        active_tree_vscroll = ttk.Scrollbar(active_tree_frame, orient="vertical", command=self.active_tree.yview)
+        active_tree_hscroll = ttk.Scrollbar(active_tree_frame, orient="horizontal", command=self.active_tree.xview)
+        self.active_tree.configure(yscrollcommand=active_tree_vscroll.set, xscrollcommand=active_tree_hscroll.set)
+
+        self.active_tree.grid(row=0, column=0, sticky="nsew")
+        active_tree_vscroll.grid(row=0, column=1, sticky="ns")
+        active_tree_hscroll.grid(row=1, column=0, sticky="ew")
+        active_tree_frame.columnconfigure(0, weight=1)
+        active_tree_frame.rowconfigure(0, weight=1)
+        self.active_tree.bind("<<TreeviewSelect>>", self._on_active_tree_select)
+        self.active_tree.bind("<Double-1>", self._on_active_tree_double_click)
+
+        headings = {
+            "id": "ID",
+            "unternehmen": "Unternehmen",
+            "position": "Position",
+            "datum": "Datum Bewerbung",
+            "status": "Status",
+            "prioritaet": "Priorität",
+            "schritt": "Nächster Schritt",
+        }
+        widths = {"id": 120, "unternehmen": 230, "position": 240, "datum": 130, "status": 200, "prioritaet": 110, "schritt": 280}
+        self.active_headings = headings
+        self.active_min_widths = widths
+        self.active_max_width = 460
+
+        for col in columns:
+            self.active_tree.heading(col, text=headings[col], command=lambda c=col: self._toggle_active_sort(c))
+            self.active_tree.column(col, width=widths[col], minwidth=widths[col], anchor="w", stretch=True)
+
+        update_box = ttk.LabelFrame(self.tab_active, text="Ausgewählte Bewerbung aktualisieren", padding=10)
+        update_box.pack(fill="x")
+        update_box.columnconfigure(1, weight=1)
+
+        mapping = [
+            ("status", "Neuer Status", self.lookups.status),
+            ("art_kontaktaufnahme", "Kontaktart", self.lookups.art_kontaktaufnahme),
+            ("ergebnis_nachfrage", "Ergebnis Nachfrage", None),
+            ("naechster_schritt", "Nächster Schritt", [""] + self.lookups.naechster_schritt),
+            ("endergebnis", "Endergebnis", [""] + self.lookups.endergebnis),
+        ]
+
+        for i, (key, label, values) in enumerate(mapping):
+            ttk.Label(update_box, text=label).grid(row=i, column=0, sticky="w", padx=(0, 8), pady=4)
+            var = tk.StringVar()
+            self.active_update_vars[key] = var
+            if values is not None:
+                widget = ttk.Combobox(update_box, textvariable=var, values=values, state="readonly", width=45)
+            else:
+                widget = ttk.Entry(update_box, textvariable=var, width=48)
+            self.active_update_widgets[key] = widget
+            widget.grid(row=i, column=1, sticky="ew", pady=4)
+
+        date_row = len(mapping)
+        ttk.Label(update_box, text="Datum Bewerbung").grid(row=date_row, column=0, sticky="w", padx=(0, 8), pady=4)
+        datum_var = tk.StringVar()
+        self.active_update_vars["datum_bewerbung"] = datum_var
+        datum_widget = self._build_date_input_with_callback(
+            parent=update_box,
+            var=datum_var,
+            on_select=lambda selected_date: datum_var.set(selected_date.strftime("%d.%m.%Y")),
+        )
+        self.active_update_widgets["datum_bewerbung"] = datum_widget
+        datum_widget.grid(row=date_row, column=1, sticky="w", pady=4)
+
+        ttk.Button(update_box, text="Änderung speichern", command=self._save_active_update).grid(
+            row=date_row + 1, column=0, columnspan=2, sticky="w", pady=(10, 0)
+        )
+
+    def _on_active_tree_select(self, _event: tk.Event | None = None) -> None:
+        selected = self.active_tree.selection()
+        if not selected:
+            self._clear_active_form()
+            return
+
+        item = selected[0]
+        row = int(self.active_tree.set(item, "_row"))
+        record = next((rec for rec in self.active_records if rec.row == row), None)
+        if record is None:
+            self._clear_active_form()
+            return
+
+        self.active_update_vars["status"].set(record.status or "")
+        self.active_update_vars["art_kontaktaufnahme"].set(record.art_kontaktaufnahme or "")
+        self.active_update_vars["ergebnis_nachfrage"].set(record.ergebnis_nachfrage or "")
+        self.active_update_vars["naechster_schritt"].set(record.naechster_schritt or "")
+        self.active_update_vars["endergebnis"].set(record.endergebnis or "")
+        self.active_update_vars["datum_bewerbung"].set(
+            record.datum_bewerbung.strftime("%d.%m.%Y") if record.datum_bewerbung else ""
+        )
+
+    def _on_active_tree_double_click(self, _event: tk.Event | None = None) -> None:
+        self._on_active_tree_select()
+        first_widget = self.active_update_widgets.get("status")
+        if first_widget is not None:
+            first_widget.focus_set()
+
+    def _clear_active_form(self) -> None:
+        for var in self.active_update_vars.values():
+            var.set("")
+
+    def _reset_active_filter(self) -> None:
+        if self.active_filter_after_id is not None:
+            self.root.after_cancel(self.active_filter_after_id)
+            self.active_filter_after_id = None
+        self.active_filter_var.set("")
+        self._render_active_records()
+
+    def _schedule_active_filter_render(self) -> None:
+        if self.active_filter_after_id is not None:
+            self.root.after_cancel(self.active_filter_after_id)
+        self.active_filter_after_id = self.root.after(self.filter_debounce_ms, self._apply_active_filter_render)
+
+    def _apply_active_filter_render(self) -> None:
+        self.active_filter_after_id = None
+        self._render_active_records()
+
+    def _toggle_active_sort(self, column: str) -> None:
+        if self.active_sort_column == column:
+            self.active_sort_desc = not self.active_sort_desc
+        else:
+            self.active_sort_column = column
+            self.active_sort_desc = False
+        self._render_active_records()
+
+    def _active_sort_key(self, rec: ApplicationRecord, column: str):
+        if column == "datum":
+            return rec.datum_bewerbung or date.min
+        if column == "id":
+            return rec.bewerbungs_id.lower()
+        if column == "unternehmen":
+            return rec.unternehmen.lower()
+        if column == "position":
+            return rec.position.lower()
+        if column == "status":
+            return rec.status.lower()
+        if column == "prioritaet":
+            return rec.prioritaet.lower()
+        if column == "schritt":
+            return rec.naechster_schritt.lower()
+        return ""
+
+    def _save_active_update(self) -> None:
+        selected = self.active_tree.selection()
+        if not selected:
+            messagebox.showwarning("Auswahl fehlt", "Bitte zuerst eine Bewerbung in der Liste auswählen.")
+            return
+
+        item = selected[0]
+        row = int(self.active_tree.set(item, "_row"))
+
+        datum_bewerbung_text = self.active_update_vars["datum_bewerbung"].get().strip()
+        if datum_bewerbung_text:
+            datum_bewerbung = as_date(datum_bewerbung_text)
+            if datum_bewerbung is None:
+                messagebox.showwarning("Ungültiges Datum", "Bitte ein gültiges Datum im Format TT.MM.JJJJ auswählen.")
+                return
+        else:
+            datum_bewerbung = ""
+
+        updates = {
+            "status": self.active_update_vars["status"].get().strip(),
+            "art_kontaktaufnahme": self.active_update_vars["art_kontaktaufnahme"].get().strip(),
+            "ergebnis_nachfrage": self.active_update_vars["ergebnis_nachfrage"].get().strip(),
+            "naechster_schritt": self.active_update_vars["naechster_schritt"].get().strip(),
+            "endergebnis": self.active_update_vars["endergebnis"].get().strip(),
+            "datum_bewerbung": datum_bewerbung,
+            "letzte_kontaktaufnahme": date.today(),
+            "status_datum": date.today(),
+        }
+
+        self.repo.update_record(row=row, updates=updates)
+        self.refresh_data()
+        messagebox.showinfo("Aktualisiert", "Bewerbung wurde aktualisiert.")
+
+    def _render_active_records(self) -> None:
+        for item in self.active_tree.get_children():
+            self.active_tree.delete(item)
+
+        self.active_tree["displaycolumns"] = ("id", "unternehmen", "position", "datum", "status", "prioritaet", "schritt")
+        self.active_tree["columns"] = ("id", "unternehmen", "position", "datum", "status", "prioritaet", "schritt", "_row")
+
+        filter_text = self.active_filter_var.get().strip().lower()
+        records = self.active_records
+        if filter_text:
+            records = [
+                rec
+                for rec in records
+                if filter_text in " ".join(
+                    [
+                        rec.bewerbungs_id,
+                        rec.unternehmen,
+                        rec.position,
+                        rec.status,
+                        rec.prioritaet,
+                        rec.naechster_schritt,
+                        rec.datum_bewerbung.strftime("%d.%m.%Y") if rec.datum_bewerbung else "",
+                    ]
+                ).lower()
+            ]
+
+        records = sorted(records, key=lambda rec: self._active_sort_key(rec, self.active_sort_column), reverse=self.active_sort_desc)
+
+        for col, base in self.active_headings.items():
+            marker = ""
+            if col == self.active_sort_column:
+                marker = " ↓" if self.active_sort_desc else " ↑"
+            self.active_tree.heading(col, text=f"{base}{marker}", command=lambda c=col: self._toggle_active_sort(c))
+
+        for rec in records:
+            self.active_tree.insert(
+                "",
+                "end",
+                values=(
+                    rec.bewerbungs_id,
+                    rec.unternehmen,
+                    rec.position,
+                    rec.datum_bewerbung.strftime("%d.%m.%Y") if rec.datum_bewerbung else "",
+                    rec.status,
+                    rec.prioritaet,
+                    rec.naechster_schritt,
+                    rec.row,
+                ),
+            )
+
+        self._autosize_active_columns()
+
+    def _autosize_active_columns(self) -> None:
+        font_name = ttk.Style().lookup("Treeview", "font")
+        measure_font = tkfont.Font(font=font_name) if font_name else tkfont.nametofont("TkDefaultFont")
+        padding = 24
+
+        for col in ("id", "unternehmen", "position", "datum", "status", "prioritaet", "schritt"):
+            heading_text = self.active_headings.get(col, col)
+            required = measure_font.measure(str(heading_text)) + padding
+
+            for item in self.active_tree.get_children():
+                cell_value = self.active_tree.set(item, col)
+                cell_width = measure_font.measure(str(cell_value)) + padding
+                if cell_width > required:
+                    required = cell_width
+
+            min_width = self.active_min_widths.get(col, 100)
+            width = max(min_width, min(required, self.active_max_width))
+            self.active_tree.column(col, width=width, minwidth=min_width)
+
     def _build_follow_up_tab(self) -> None:
         self.tab_follow_up.columnconfigure(0, weight=1)
 
@@ -332,6 +709,8 @@ class BewerbungsverwaltungApp:
         follow_filter_entry.pack(side="left", padx=(0, 8))
         follow_filter_entry.bind("<KeyRelease>", lambda _event: self._schedule_follow_filter_render())
         ttk.Button(follow_filter_box, text="Zurücksetzen", command=self._reset_follow_filter, width=12).pack(side="left")
+
+        self._build_follow_up_legend_bar()
 
         columns = ("id", "unternehmen", "position", "status", "erinnerung", "prioritaet", "schritt")
         follow_tree_frame = ttk.Frame(self.tab_follow_up)
@@ -353,6 +732,8 @@ class BewerbungsverwaltungApp:
         follow_tree_hscroll.grid(row=1, column=0, sticky="ew")
         follow_tree_frame.columnconfigure(0, weight=1)
         follow_tree_frame.rowconfigure(0, weight=1)
+        for tag_name, _label, color in self.follow_overdue_legend:
+            self.follow_tree.tag_configure(tag_name, background=color)
         self.follow_tree.bind("<<TreeviewSelect>>", self._on_follow_tree_select)
         self.follow_tree.bind("<Double-1>", self._on_follow_tree_double_click)
 
@@ -382,8 +763,8 @@ class BewerbungsverwaltungApp:
             ("status", "Neuer Status", self.lookups.status),
             ("art_kontaktaufnahme", "Kontaktart", self.lookups.art_kontaktaufnahme),
             ("ergebnis_nachfrage", "Ergebnis Nachfrage", None),
-            ("naechster_schritt", "Nächster Schritt", None),
-            ("endergebnis", "Endergebnis", self.lookups.endergebnis),
+            ("naechster_schritt", "Nächster Schritt", [""] + self.lookups.naechster_schritt),
+            ("endergebnis", "Endergebnis", [""] + self.lookups.endergebnis),
         ]
 
         for i, (key, label, values) in enumerate(mapping):
@@ -400,6 +781,38 @@ class BewerbungsverwaltungApp:
         ttk.Button(update_box, text="Änderung speichern", command=self._save_follow_up_update).grid(
             row=len(mapping), column=0, columnspan=2, sticky="w", pady=(10, 0)
         )
+
+    def _build_follow_up_legend_bar(self) -> None:
+        legend_bar = tk.Frame(self.tab_follow_up, bd=1, relief="groove", bg="#f4f6f8", padx=8, pady=6)
+        legend_bar.pack(fill="x", pady=(0, 8))
+
+        tk.Label(
+            legend_bar,
+            text="Statusleiste – Überfälligkeit:",
+            bg="#f4f6f8",
+            fg="#2c2c2c",
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=(0, 10))
+
+        for _tag_name, label, color in self.follow_overdue_legend:
+            tk.Label(
+                legend_bar,
+                text=f"  {label}  ",
+                bg=color,
+                fg="#1f1f1f",
+                bd=1,
+                relief="solid",
+                padx=6,
+                pady=2,
+            ).pack(side="left", padx=(0, 6))
+
+        tk.Label(
+            legend_bar,
+            text="kein Farbhintergrund = noch nicht überfällig",
+            bg="#f4f6f8",
+            fg="#555555",
+            font=("Segoe UI", 9),
+        ).pack(side="left", padx=(6, 0))
 
     def _on_follow_tree_select(self, _event: tk.Event | None = None) -> None:
         selected = self.follow_tree.selection()
@@ -469,6 +882,18 @@ class BewerbungsverwaltungApp:
             return rec.prioritaet.lower()
         if column == "schritt":
             return rec.naechster_schritt.lower()
+        return ""
+
+    def _get_overdue_days(self, rec: ApplicationRecord) -> int:
+        if rec.erinnerungsdatum is None:
+            return 0
+        return max((date.today() - rec.erinnerungsdatum).days, 0)
+
+    def _get_follow_row_tag(self, rec: ApplicationRecord) -> str:
+        overdue_days = self._get_overdue_days(rec)
+        for minimum_days, tag in self.follow_overdue_thresholds:
+            if overdue_days >= minimum_days:
+                return tag
         return ""
 
     def _build_archive_tab(self) -> None:
@@ -616,6 +1041,153 @@ class BewerbungsverwaltungApp:
         self.refresh_data()
         messagebox.showinfo("Aktualisiert", "Bewerbung wurde aktualisiert.")
 
+    def _open_naechster_schritt_catalog_dialog(self) -> None:
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Katalog 'Nächster Schritt' verwalten")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.geometry("640x480")
+        dialog.minsize(560, 420)
+
+        container = ttk.Frame(dialog, padding=12)
+        container.pack(fill="both", expand=True)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
+
+        ttk.Label(
+            container,
+            text="Pflege den Dropdown-Katalog für 'Nächster Schritt' (GUI + Excel).",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        list_frame = ttk.Frame(container)
+        list_frame.grid(row=1, column=0, sticky="nsew")
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+
+        listbox = tk.Listbox(list_frame, selectmode="browse", activestyle="dotbox", exportselection=False)
+        listbox.grid(row=0, column=0, sticky="nsew")
+        list_scroll = ttk.Scrollbar(list_frame, orient="vertical", command=listbox.yview)
+        list_scroll.grid(row=0, column=1, sticky="ns")
+        listbox.configure(yscrollcommand=list_scroll.set)
+
+        for item in self.lookups.naechster_schritt:
+            listbox.insert("end", item)
+
+        input_frame = ttk.Frame(container)
+        input_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        input_frame.columnconfigure(1, weight=1)
+
+        new_value_var = tk.StringVar()
+        ttk.Label(input_frame, text="Neuer Schritt:").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        new_value_entry = ttk.Entry(input_frame, textvariable=new_value_var)
+        new_value_entry.grid(row=0, column=1, sticky="ew")
+
+        button_row = ttk.Frame(container)
+        button_row.grid(row=3, column=0, sticky="w", pady=(10, 0))
+
+        def add_item() -> None:
+            value = new_value_var.get().strip()
+            if not value:
+                return
+            existing = [listbox.get(i).strip().casefold() for i in range(listbox.size())]
+            if value.casefold() in existing:
+                messagebox.showwarning("Bereits vorhanden", "Dieser Schritt ist bereits im Katalog.", parent=dialog)
+                return
+            listbox.insert("end", value)
+            new_value_var.set("")
+            new_value_entry.focus_set()
+
+        def remove_selected() -> None:
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("Auswahl fehlt", "Bitte zuerst einen Eintrag auswählen.", parent=dialog)
+                return
+            listbox.delete(selection[0])
+
+        def move_selected(direction: int) -> None:
+            selection = listbox.curselection()
+            if not selection:
+                return
+            idx = selection[0]
+            target = idx + direction
+            if target < 0 or target >= listbox.size():
+                return
+            value = listbox.get(idx)
+            listbox.delete(idx)
+            listbox.insert(target, value)
+            listbox.selection_clear(0, "end")
+            listbox.selection_set(target)
+            listbox.activate(target)
+
+        def save_catalog() -> None:
+            items = [listbox.get(i).strip() for i in range(listbox.size()) if listbox.get(i).strip()]
+            if not items:
+                messagebox.showwarning("Leerer Katalog", "Bitte mindestens einen Eintrag hinterlegen.", parent=dialog)
+                return
+            try:
+                self.repo.save_naechster_schritt_catalog(items)
+                self.lookups = self.repo.load_lookups()
+                self._refresh_lookup_comboboxes()
+            except (OSError, PermissionError) as exc:
+                messagebox.showerror(
+                    "Speichern fehlgeschlagen",
+                    f"Katalog konnte nicht gespeichert werden:\n{exc}\n\nIst die Excel-Datei vielleicht gerade geöffnet?",
+                    parent=dialog,
+                )
+                return
+            except ValueError as exc:
+                messagebox.showwarning("Ungültiger Katalog", str(exc), parent=dialog)
+                return
+
+            messagebox.showinfo("Gespeichert", "Katalog wurde aktualisiert.", parent=dialog)
+            dialog.destroy()
+
+        ttk.Button(button_row, text="Hinzufügen", command=add_item, width=14).pack(side="left", padx=(0, 8))
+        ttk.Button(button_row, text="Ausgewählten löschen", command=remove_selected, width=20).pack(side="left", padx=(0, 8))
+        ttk.Button(button_row, text="Nach oben", command=lambda: move_selected(-1), width=12).pack(side="left", padx=(0, 8))
+        ttk.Button(button_row, text="Nach unten", command=lambda: move_selected(1), width=12).pack(side="left")
+
+        footer = ttk.Frame(container)
+        footer.grid(row=4, column=0, sticky="ew", pady=(14, 0))
+        ttk.Button(footer, text="Speichern", command=save_catalog, width=14).pack(side="left", padx=(0, 8))
+        ttk.Button(footer, text="Abbrechen", command=dialog.destroy, width=14).pack(side="left")
+
+        new_value_entry.bind("<Return>", lambda _event: add_item())
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+        new_value_entry.focus_set()
+
+    def _refresh_lookup_comboboxes(self) -> None:
+        form_lookup_values = {
+            "quelle": self.lookups.quelle,
+            "art_bewerbung": self.lookups.art_bewerbung,
+            "unterlagen": self.lookups.unterlagen,
+            "status": self.lookups.status,
+            "prioritaet": self.lookups.prioritaet,
+            "naechster_schritt": [""] + self.lookups.naechster_schritt,
+        }
+        for key, values in form_lookup_values.items():
+            widget = self.form_widgets.get(key)
+            if isinstance(widget, ttk.Combobox):
+                widget.configure(values=values)
+                current_value = widget.get().strip()
+                if current_value and current_value not in values:
+                    widget.set("")
+
+        update_lookup_values = {
+            "status": self.lookups.status,
+            "art_kontaktaufnahme": self.lookups.art_kontaktaufnahme,
+            "naechster_schritt": [""] + self.lookups.naechster_schritt,
+            "endergebnis": [""] + self.lookups.endergebnis,
+        }
+        for key, values in update_lookup_values.items():
+            for widget_dict in (self.update_widgets, self.active_update_widgets):
+                widget = widget_dict.get(key)
+                if isinstance(widget, ttk.Combobox):
+                    widget.configure(values=values)
+                    current_value = widget.get().strip()
+                    if current_value and current_value not in values:
+                        widget.set("")
+
     def _reset_form(self) -> None:
         for key, var in self.form_vars.items():
             if key in {"datum_bewerbung", "status_datum"}:
@@ -628,9 +1200,15 @@ class BewerbungsverwaltungApp:
         try:
             self.records = self.repo.load_records()
             self.follow_up_records, self.archive_records = self.repo.categorize_records(self.records)
+            self.active_records = [
+                rec for rec in self.records
+                if not bool(rec.endergebnis) and rec.status not in ARCHIVE_STATUS
+            ]
+            self._render_active_records()
             self._render_follow_up_records()
             self._render_archive_records()
             self._clear_follow_up_form()
+            self._clear_active_form()
             self.status_var.set(f"{len(self.records)} Einträge geladen")
         finally:
             self._set_refresh_state(False, self.status_var.get())
@@ -670,6 +1248,7 @@ class BewerbungsverwaltungApp:
             self.follow_tree.heading(col, text=f"{base}{marker}", command=lambda c=col: self._toggle_follow_sort(c))
 
         for rec in records:
+            row_tag = self._get_follow_row_tag(rec)
             self.follow_tree.insert(
                 "",
                 "end",
@@ -683,6 +1262,7 @@ class BewerbungsverwaltungApp:
                     rec.naechster_schritt,
                     rec.row,
                 ),
+                tags=(row_tag,) if row_tag else (),
             )
 
         self._autosize_follow_up_columns()
