@@ -1,0 +1,5 @@
+{
+  "default": {
+    "disable_rules": "MD013,MD022,MD026,MD032,MD036"
+  }
+}
