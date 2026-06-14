@@ -79,5 +79,12 @@ Zusätzlich verfügbar:
   - `docs/DOKUMENTATION_TECHNIK.md`
   - `docs/SCHNELLSTART.md`
 - Ausgabeordner: `docs/pdf/`
+- Feste PDF-Regeln:
+  - Seite 1 = Titelblatt
+  - Seite 2 = Inhaltsverzeichnis mit klickbaren Hyperlinks
+  - ab Seite 3 = eigentlicher Inhalt
+  - Überschriften bleiben nach Möglichkeit mit dem direkt folgenden Inhalt zusammen
+
+- In der GUI sind die PDFs direkt über die Header-Schaltflächen `Schnellstart`, `Anwender-Doku` und `Technik-Doku` erreichbar.
 
 Farbakzent im Layout basiert auf der definierten CI-Farbe (CMYK `0 / 60 / 100 / 0`).

@@ -36,6 +36,8 @@ Dieses Projekt stellt eine Desktop-GUI für eine bestehende Excel-basierte Bewer
 - `src/bewerbungsverwaltung_app/models.py` – Datenmodelle
 - `src/bewerbungsverwaltung_app/utils.py` – Konvertierung (String/Datum)
 - `src/build_exe.ps1` – Build-Helfer für EXE
+- `src/scripts/convert_docs_to_pdf.py` – Markdown-zu-PDF-Konvertierung mit festem Dokumentlayout
+- `src/scripts/convert_docs_to_pdf.ps1` – PowerShell-Wrapper für die PDF-Erzeugung
 - `.github/workflows/ci.yml` – CI Smoke-Checks
 
 ## Datenquelle und Blätter
@@ -98,6 +100,26 @@ Archiviert (in GUI-Sicht), wenn:
 - Farbliche Überfälligkeitsstufen in Follow-up-Listenzeilen.
 - Legende als Statusleiste im Follow-up-Tab.
 - Katalogverwaltung für `Nächster Schritt` (GUI-Dialog, Speicherung in Excel).
+- Header-Schaltflächen für `Schnellstart`, `Anwender-Doku` und `Technik-Doku` öffnen direkt die erzeugten PDFs aus `docs/pdf/`.
+
+## PDF-Dokumentationspipeline
+
+Die Projektdokumentation wird zusätzlich als PDF ausgeliefert. Die Generierung folgt festen Layout-Regeln:
+
+- Seite 1 enthält ausschließlich das Titelblatt.
+- Seite 2 enthält ein klickbares Inhaltsverzeichnis mit internen PDF-Links.
+- Ab Seite 3 folgt der eigentliche Dokumentinhalt.
+- Markdown-Titel und Markdown-Inhaltsverzeichnis werden beim PDF-Rendering aus dem Fließteil entfernt, damit keine Dubletten entstehen.
+- Abschnittsüberschriften (`H1`–`H3`) werden beim Satz nach Möglichkeit mit dem unmittelbar folgenden Block zusammengehalten.
+
+Erzeugung lokal:
+
+- `./src/scripts/convert_docs_to_pdf.ps1`
+
+Release-Integration:
+
+- `src/release.ps1` erzeugt die PDFs automatisch vor dem Packen des Release-ZIP.
+- Die PDFs werden zusätzlich unter `docs/pdf/` in das Release-Archiv übernommen.
 
 ## Workbook-Health-Check
 

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+from html import escape as html_escape
 from pathlib import Path
+import re
 from typing import Iterable
 
 from bs4 import BeautifulSoup, NavigableString, Tag
@@ -12,7 +14,6 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.pdfbase import pdfmetrics
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
@@ -61,7 +62,7 @@ class DocTheme:
             fontName="Helvetica-Bold",
             fontSize=24,
             leading=28,
-            textColor=colors.white,
+            textColor=PRIMARY_DARK,
             alignment=TA_CENTER,
             spaceAfter=8,
         )
@@ -71,7 +72,7 @@ class DocTheme:
             fontName="Helvetica",
             fontSize=11,
             leading=14,
-            textColor=colors.white,
+            textColor=MUTED,
             alignment=TA_CENTER,
             spaceAfter=0,
         )
@@ -84,6 +85,7 @@ class DocTheme:
             textColor=PRIMARY_DARK,
             spaceBefore=14,
             spaceAfter=8,
+            keepWithNext=True,
         )
         self.h2 = ParagraphStyle(
             "H2",
@@ -94,6 +96,7 @@ class DocTheme:
             textColor=PRIMARY_DARK,
             spaceBefore=12,
             spaceAfter=6,
+            keepWithNext=True,
         )
         self.h3 = ParagraphStyle(
             "H3",
@@ -104,6 +107,7 @@ class DocTheme:
             textColor=TEXT,
             spaceBefore=10,
             spaceAfter=4,
+            keepWithNext=True,
         )
         self.body = ParagraphStyle(
             "Body",
@@ -141,6 +145,22 @@ class DocTheme:
             textColor=MUTED,
             alignment=TA_RIGHT,
         )
+        self.toc_title = ParagraphStyle(
+            "TocTitle",
+            parent=self.h1,
+            alignment=TA_CENTER,
+            textColor=PRIMARY_DARK,
+            spaceBefore=0,
+            spaceAfter=10,
+        )
+        self.toc_entry = ParagraphStyle(
+            "TocEntry",
+            parent=self.body,
+            textColor=PRIMARY_DARK,
+            leading=14,
+            spaceBefore=0,
+            spaceAfter=4,
+        )
 
 
 def _draw_page_chrome(canvas, doc: BaseDocTemplate) -> None:
@@ -164,11 +184,51 @@ def _draw_page_chrome(canvas, doc: BaseDocTemplate) -> None:
     canvas.restoreState()
 
 
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
+    return slug or "abschnitt"
+
+
+def _strip_markdown_title_and_toc(markdown_text: str) -> str:
+    lines = markdown_text.splitlines()
+    result: list[str] = []
+    started = False
+    skipping_toc = False
+    toc_level = 0
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not started and (not stripped or stripped.startswith("# ")):
+            if stripped.startswith("# "):
+                started = True
+            continue
+
+        if not started:
+            started = True
+
+        heading_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if not skipping_toc and heading_match and heading_match.group(2).strip().casefold() == "inhaltsverzeichnis":
+            skipping_toc = True
+            toc_level = len(heading_match.group(1))
+            continue
+
+        if skipping_toc:
+            if heading_match and len(heading_match.group(1)) <= toc_level:
+                skipping_toc = False
+            else:
+                continue
+
+        result.append(line)
+
+    return "\n".join(result).strip() + "\n"
+
+
 def _inline_html(tag: Tag) -> str:
     parts: list[str] = []
     for child in tag.children:
         if isinstance(child, NavigableString):
-            parts.append(str(child).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+            parts.append(html_escape(str(child)))
             continue
 
         if not isinstance(child, Tag):
@@ -184,7 +244,10 @@ def _inline_html(tag: Tag) -> str:
         elif name == "a":
             href = child.get("href", "")
             label = _inline_html(child)
-            parts.append(f"<a href='{href}' color='{PRIMARY.hexval()}'>{label}</a>")
+            if href.startswith("#"):
+                parts.append(f"<link href='{href}' color='{PRIMARY.hexval()}'>{label}</link>")
+            else:
+                parts.append(f"<a href='{href}' color='{PRIMARY.hexval()}'>{label}</a>")
         elif name == "br":
             parts.append("<br/>")
         else:
@@ -259,12 +322,59 @@ def _table_to_flowable(tag: Tag, theme: DocTheme) -> Table:
     return table
 
 
+def _collect_toc_entries(soup: BeautifulSoup) -> list[tuple[int, str, str]]:
+    entries: list[tuple[int, str, str]] = []
+    used_anchors: dict[str, int] = {}
+
+    for node in soup.find_all(["h1", "h2", "h3"]):
+        level = int(node.name[1])
+        text = node.get_text(" ", strip=True)
+        if not text:
+            continue
+
+        anchor_base = _slugify(text)
+        suffix = used_anchors.get(anchor_base, 0)
+        used_anchors[anchor_base] = suffix + 1
+        anchor = anchor_base if suffix == 0 else f"{anchor_base}-{suffix + 1}"
+        entries.append((level, text, anchor))
+
+    return entries
+
+
+def _build_toc_story(entries: list[tuple[int, str, str]], theme: DocTheme) -> list:
+    story: list = [Spacer(1, 18 * mm), Paragraph("Inhaltsverzeichnis", theme.toc_title), Spacer(1, 4 * mm)]
+
+    if not entries:
+        story.append(Paragraph("Keine Abschnitte gefunden.", theme.body))
+        return story
+
+    base_level = min(level for level, _text, _anchor in entries)
+    for level, text, anchor in entries:
+        entry_style = ParagraphStyle(
+            f"TocEntry{level}",
+            parent=theme.toc_entry,
+            leftIndent=(level - base_level) * 10,
+        )
+        story.append(
+            Paragraph(
+                f"<link href='#{anchor}' color='{PRIMARY.hexval()}'>{html_escape(text)}</link>",
+                entry_style,
+            )
+        )
+
+    story.append(Spacer(1, 3 * mm))
+    story.append(Paragraph("Hinweis: Alle Einträge im Inhaltsverzeichnis sind im PDF direkt anklickbar.", theme.caption))
+    return story
+
+
 def markdown_to_story(title: str, markdown_text: str, source_name: str, theme: DocTheme) -> list:
+    content_markdown = _strip_markdown_title_and_toc(markdown_text)
     html = md.markdown(
-        markdown_text,
+        content_markdown,
         extensions=["extra", "tables", "fenced_code", "sane_lists", "toc"],
     )
     soup = BeautifulSoup(html, "html.parser")
+    toc_entries = _collect_toc_entries(soup)
 
     story: list = []
 
@@ -273,11 +383,15 @@ def markdown_to_story(title: str, markdown_text: str, source_name: str, theme: D
     story.append(Paragraph(title, theme.title))
     story.append(Paragraph("Bewerbungsverwaltung · Dokumentation", theme.subtitle))
     story.append(Spacer(1, 8 * mm))
-    story.append(HRFlowable(width="45%", thickness=1.4, color=colors.white, hAlign="CENTER"))
+    story.append(HRFlowable(width="45%", thickness=1.4, color=PRIMARY, hAlign="CENTER"))
     story.append(Spacer(1, 6 * mm))
     generated = dt.datetime.now().strftime("%d.%m.%Y %H:%M")
     story.append(Paragraph(f"Quelle: {source_name}<br/>Generiert am: {generated}", theme.subtitle))
     story.append(PageBreak())
+    story.extend(_build_toc_story(toc_entries, theme))
+    story.append(PageBreak())
+
+    heading_index = 0
 
     for node in soup.contents:
         if isinstance(node, NavigableString):
@@ -292,11 +406,17 @@ def markdown_to_story(title: str, markdown_text: str, source_name: str, theme: D
         name = node.name.lower()
 
         if name == "h1":
-            story.append(Paragraph(_inline_html(node), theme.h1))
+            level, _text, anchor = toc_entries[heading_index]
+            heading_index += 1
+            story.append(Paragraph(f"<a name='{anchor}'/>{_inline_html(node)}", theme.h1))
         elif name == "h2":
-            story.append(Paragraph(_inline_html(node), theme.h2))
+            level, _text, anchor = toc_entries[heading_index]
+            heading_index += 1
+            story.append(Paragraph(f"<a name='{anchor}'/>{_inline_html(node)}", theme.h2))
         elif name == "h3":
-            story.append(Paragraph(_inline_html(node), theme.h3))
+            level, _text, anchor = toc_entries[heading_index]
+            heading_index += 1
+            story.append(Paragraph(f"<a name='{anchor}'/>{_inline_html(node)}", theme.h3))
         elif name == "p":
             story.append(Paragraph(_inline_html(node), theme.body))
         elif name == "blockquote":
