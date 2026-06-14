@@ -121,6 +121,13 @@ class BewerbungsverwaltungApp:
         ).pack(side="left")
 
         self._build_documentation_buttons(header)
+        ttk.Button(
+            header,
+            text="Schnellstart",
+            command=lambda: self._open_documentation(Path("docs") / "pdf" / "SCHNELLSTART.pdf"),
+            width=16,
+            style="HeaderAction.TButton",
+        ).pack(side="right", padx=4)
         self.reload_button = ttk.Button(header, text="Daten neu laden", command=self.refresh_data)
         self.reload_button.pack(side="right", padx=4)
 
@@ -280,30 +287,30 @@ class BewerbungsverwaltungApp:
     def _build_documentation_buttons(self, parent: ttk.Frame) -> None:
         docs_frame = ttk.Frame(parent)
         docs_frame.pack(side="right", padx=(0, 12))
+
+        header_button_style = "HeaderAction.TButton"
+        ttk.Style(self.root).configure(header_button_style, padding=(10, 6))
         header_button_width = 16
         ttk.Button(
             docs_frame,
             text="Excel-Datei",
             command=self._open_release_excel_file,
             width=header_button_width,
+            style=header_button_style,
         ).pack(side="left", padx=4)
         ttk.Button(
             docs_frame,
             text="Anwender-Doku",
-            command=lambda: self._open_documentation(Path("docs") / "DOKUMENTATION_ANWENDER.md"),
+            command=lambda: self._open_documentation(Path("docs") / "pdf" / "DOKUMENTATION_ANWENDER.pdf"),
             width=header_button_width,
-        ).pack(side="left", padx=4)
-        ttk.Button(
-            docs_frame,
-            text="FAQ",
-            command=lambda: self._open_documentation(Path("docs") / "FAQ.md"),
-            width=header_button_width,
+            style=header_button_style,
         ).pack(side="left", padx=4)
         ttk.Button(
             docs_frame,
             text="Technik-Doku",
-            command=lambda: self._open_documentation(Path("docs") / "DOKUMENTATION_TECHNIK.md"),
+            command=lambda: self._open_documentation(Path("docs") / "pdf" / "DOKUMENTATION_TECHNIK.pdf"),
             width=header_button_width,
+            style=header_button_style,
         ).pack(side="left", padx=4)
 
     def _open_release_excel_file(self) -> None:

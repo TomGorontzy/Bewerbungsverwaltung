@@ -21,6 +21,9 @@ if ($ReleaseVersion -notmatch '^v\d+\.\d+\.\d+$') {
 Write-Host "[Release] Markdown-Lintfix ausführen ..." -ForegroundColor Cyan
 & "$srcRoot\scripts\markdown_lint_fix.ps1"
 
+Write-Host "[Release] Dokumentation als PDF exportieren ..." -ForegroundColor Cyan
+& "$srcRoot\scripts\convert_docs_to_pdf.ps1"
+
 $statusArgs = @('status', '--porcelain')
 $mdChanges = @((& git @statusArgs) | Where-Object { $_ -imatch '\.(md|markdown|mdown|mkd)$' })
 if ($mdChanges.Count -gt 0) {
@@ -100,6 +103,16 @@ if (Test-Path $docsSource) {
     Get-ChildItem -Path $docsSource -Filter '*.md' -File | ForEach-Object {
         Copy-Item $_.FullName $docsDest -Force
         Write-Host "  + docs/$($_.Name)" -ForegroundColor DarkGreen
+    }
+
+    $pdfSource = Join-Path $docsSource 'pdf'
+    if (Test-Path $pdfSource) {
+        $pdfDest = Join-Path $docsDest 'pdf'
+        New-Item $pdfDest -ItemType Directory -Force | Out-Null
+        Get-ChildItem -Path $pdfSource -Filter '*.pdf' -File | ForEach-Object {
+            Copy-Item $_.FullName $pdfDest -Force
+            Write-Host "  + docs/pdf/$($_.Name)" -ForegroundColor DarkGreen
+        }
     }
 }
 

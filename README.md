@@ -70,3 +70,14 @@ Zusätzlich verfügbar:
 - Anwenderdokumentation: `docs/DOKUMENTATION_ANWENDER.md`
 - Technische Dokumentation: `docs/DOKUMENTATION_TECHNIK.md`
 - FAQ: `docs/FAQ.md`
+
+### Dokumentation als PDF exportieren
+
+- Konvertierungsskript: `src/scripts/convert_docs_to_pdf.ps1`
+- Erstellt modern gestaltete PDFs für:
+  - `docs/DOKUMENTATION_ANWENDER.md`
+  - `docs/DOKUMENTATION_TECHNIK.md`
+  - `docs/SCHNELLSTART.md`
+- Ausgabeordner: `docs/pdf/`
+
+Farbakzent im Layout basiert auf der definierten CI-Farbe (CMYK `0 / 60 / 100 / 0`).
