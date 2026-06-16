@@ -4,9 +4,25 @@ $srcRoot = Split-Path -Parent $PSScriptRoot
 $projectRoot = Split-Path -Parent $srcRoot
 Set-Location $projectRoot
 
-$python = Join-Path $projectRoot '.venv\Scripts\python.exe'
-if (!(Test-Path $python)) {
-    throw "Python in .venv nicht gefunden: $python"
+$pythonCandidates = @(
+    (Join-Path $projectRoot '.venv\Scripts\python.exe')
+)
+
+if ($env:pythonLocation) {
+    $pythonCandidates += (Join-Path $env:pythonLocation 'python.exe')
+}
+
+$python = $pythonCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+if (-not $python) {
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCommand) {
+        $python = $pythonCommand.Source
+    }
+}
+
+if (-not $python) {
+    throw "Kein Python-Interpreter gefunden (.venv, pythonLocation oder PATH)."
 }
 
 $disabledRules = 'MD013,MD022,MD026,MD032,MD036'
