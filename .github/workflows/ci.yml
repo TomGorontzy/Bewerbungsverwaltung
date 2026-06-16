@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: PowerShell script analysis
         shell: pwsh
@@ -21,7 +21,10 @@ jobs:
           Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber
           $settingsPath = Join-Path $PWD 'src/PSScriptAnalyzerSettings.psd1'
           $targets = @('src/build_exe.ps1', 'src/release.ps1', 'src/scripts')
-          $results = Invoke-ScriptAnalyzer -Path $targets -Recurse -Settings $settingsPath
+          $results = @()
+          foreach ($target in $targets) {
+            $results += Invoke-ScriptAnalyzer -Path $target -Recurse -Settings $settingsPath
+          }
           if ($results.Count -gt 0) {
             $results |
               Select-Object Severity, RuleName, ScriptName, Line, Message |
@@ -33,7 +36,7 @@ jobs:
           }
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
