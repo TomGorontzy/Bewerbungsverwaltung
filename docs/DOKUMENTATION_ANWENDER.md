@@ -7,8 +7,10 @@
 - [Start der Anwendung](#start-der-anwendung)
 - [Bedienung](#bedienung)
   - [Neue Bewerbungen](#1-neue-bewerbungen)
-  - [Nachzufassende Bewerbungen](#2-nachzufassende-bewerbungen)
-  - [Erledigte Bewerbungen (Archiv)](#3-erledigte-bewerbungen-archiv)
+  - [Laufende Bewerbungen](#2-laufende-bewerbungen)
+  - [Nachzufassende Bewerbungen](#3-nachzufassende-bewerbungen)
+  - [Erledigte Bewerbungen (Archiv)](#4-erledigte-bewerbungen-archiv)
+  - [Detailbearbeitung per Doppelklick](#detailbearbeitung-per-doppelklick)
 - [Farblogik in Nachzufassen](#farblogik-in-nachzufassen)
 - [Datensicherung](#datensicherung)
 - [Häufige Probleme](#häufige-probleme)
@@ -21,6 +23,7 @@ Die Anwendung **Bewerbungsverwaltung** unterstützt bei der strukturierten Pfleg
 Die GUI bietet drei Hauptbereiche:
 
 - **Neue Bewerbungen**
+- **Laufende Bewerbungen**
 - **Nachzufassende Bewerbungen**
 - **Erledigte Bewerbungen (Archiv)**
 
@@ -81,7 +84,23 @@ Automatisch gesetzt durch Excel-Logik:
 - Erinnerungsdatum
 - Kennzeichnung „Heute erledigen?“
 
-### 2) Nachzufassende Bewerbungen
+### 2) Laufende Bewerbungen
+
+Im Tab **Laufende Bewerbungen** werden alle offenen Bewerbungen ohne Endergebnis angezeigt.
+
+Möglichkeiten:
+
+- Filtern
+- Spaltenweise sortieren
+- Datensatz auswählen und unten aktualisieren (`Status`, `Kontaktart`, `Ergebnis Nachfrage`, `Nächster Schritt`, `Endergebnis`, `Datum Bewerbung`)
+
+Typische Aktion:
+
+1. Eintrag in der Liste auswählen
+2. Änderungen unten eintragen
+3. `Änderung speichern` klicken
+
+### 3) Nachzufassende Bewerbungen
 
 Im Tab **Nachzufassende Bewerbungen** werden fällige Aktivitäten angezeigt.
 
@@ -125,9 +144,30 @@ Hinweis für die direkte Arbeit in Excel:
 
 Kein Farbhintergrund bedeutet: aktuell noch nicht überfällig.
 
-### 3) Erledigte Bewerbungen (Archiv)
+### 4) Erledigte Bewerbungen (Archiv)
 
 Hier erscheinen abgeschlossene Bewerbungen (z. B. Absage/Zusage oder gesetztes Endergebnis).
+
+### Detailbearbeitung per Doppelklick
+
+In allen drei Listen (`Laufende Bewerbungen`, `Nachzufassende Bewerbungen`, `Erledigte Bewerbungen`) öffnet ein **Doppelklick** auf einen Eintrag ein separates Detailfenster.
+
+Im Detailfenster:
+
+- werden alle Felder aus `Bewerbungsübersicht` angezeigt,
+- können Felder direkt bearbeitet werden,
+- werden Änderungen erst nach Bestätigung (`Speichern`) in Excel geschrieben.
+
+Schließen/Abbrechen:
+
+- `Abbrechen` oder Schließen über `X` fragt bei ungespeicherten Änderungen nach,
+- Änderungen können gespeichert oder verworfen werden,
+- bei Auswahl `Abbrechen` bleibt das Fenster geöffnet.
+
+Hinweis zur Anzeige ungespeicherter Änderungen:
+
+- `*` im Fenstertitel,
+- Statushinweis im Fenster (`Ungespeicherte Änderungen`).
 
 ## Datensicherung
 

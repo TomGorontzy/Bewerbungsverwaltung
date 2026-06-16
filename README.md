@@ -12,12 +12,23 @@ Die App arbeitet auf Basis von `data/Bewerbungsaktivitäten mit Erinnerungen.xls
   - strukturierte Erfassung mit Pflichtfeldern
   - Datumsauswahl mit Picker
   - konsistente Dropdown-Werte aus Excel-`Hilfstabellen`
+- **Laufende Bewerbungen**
+  - zentrale Liste aller offenen Vorgänge
+  - schnelle Statusaktualisierung im unteren Bearbeitungsbereich
 - **Nachzufassende Bewerbungen**
   - fällige/überfällige Einträge mit direkter Aktualisierung
   - farbliche Hervorhebung je Überfälligkeit
   - Legende als Statusleiste im Tab
 - **Erledigte Bewerbungen (Archiv)**
   - abgeschlossene Vorgänge (z. B. Absage/Zusage) mit Filter/Sortierung
+
+Zusätzlich verfügbar:
+
+- Detail-Editor per Doppelklick auf einen Listeneintrag (Laufend/Nachzufassen/Archiv)
+  - zeigt alle Felder aus `Bewerbungsübersicht`
+  - Änderungen werden erst nach Bestätigung gespeichert
+  - Abbrechen bzw. Schließen über `X` erlaubt Verwerfen ungespeicherter Änderungen
+  - visuelle Ungespeichert-Anzeige (`*` im Fenstertitel + Statushinweis im Fenster)
 
 ## Voraussetzungen
 

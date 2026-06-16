@@ -8,7 +8,7 @@ from pathlib import Path
 from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
-from .constants import ARCHIVE_STATUS
+from .constants import ARCHIVE_STATUS, FIELD_ORDER
 from .excel_repository import ExcelRepository
 from .models import ApplicationRecord, LookupValues
 from .utils import as_date
@@ -71,6 +71,14 @@ class BewerbungsverwaltungApp:
         ]
         self.status_var = tk.StringVar(value="Bereit")
         self.reload_button: ttk.Button | None = None
+        self.detail_editor_window: tk.Toplevel | None = None
+        self.detail_editor_vars: dict[str, tk.StringVar] = {}
+        self.detail_editor_widgets: dict[str, tk.Widget] = {}
+        self.detail_editor_initial_values: dict[str, str] = {}
+        self.detail_editor_record_row: int | None = None
+        self.detail_editor_dirty = False
+        self.detail_editor_title_base = ""
+        self.detail_editor_status_label: ttk.Label | None = None
 
         self._build_ui()
         self._reset_form()
@@ -567,10 +575,7 @@ class BewerbungsverwaltungApp:
         )
 
     def _on_active_tree_double_click(self, _event: tk.Event | None = None) -> None:
-        self._on_active_tree_select()
-        first_widget = self.active_update_widgets.get("status")
-        if first_widget is not None:
-            first_widget.focus_set()
+        self._open_detail_editor_from_tree(self.active_tree, self.active_records, _event)
 
     def _clear_active_form(self) -> None:
         for var in self.active_update_vars.values():
@@ -861,10 +866,7 @@ class BewerbungsverwaltungApp:
         self.update_vars["endergebnis"].set(record.endergebnis or "")
 
     def _on_follow_tree_double_click(self, _event: tk.Event | None = None) -> None:
-        self._on_follow_tree_select()
-        first_widget = self.update_widgets.get("status")
-        if first_widget is not None:
-            first_widget.focus_set()
+        self._open_detail_editor_from_tree(self.follow_tree, self.follow_up_records, _event)
 
     def _clear_follow_up_form(self) -> None:
         for var in self.update_vars.values():
@@ -959,6 +961,7 @@ class BewerbungsverwaltungApp:
         archive_tree_hscroll.grid(row=1, column=0, sticky="ew")
         archive_tree_frame.columnconfigure(0, weight=1)
         archive_tree_frame.rowconfigure(0, weight=1)
+        self.archive_tree.bind("<Double-1>", self._on_archive_tree_double_click)
 
         headings = {
             "id": "ID",
@@ -983,6 +986,325 @@ class BewerbungsverwaltungApp:
             self.archive_filter_after_id = None
         self.archive_filter_var.set("")
         self._render_archive_records()
+
+    def _on_archive_tree_double_click(self, _event: tk.Event | None = None) -> None:
+        self._open_detail_editor_from_tree(self.archive_tree, self.archive_records, _event)
+
+    def _open_detail_editor_from_tree(
+        self,
+        tree: ttk.Treeview,
+        records: list[ApplicationRecord],
+        event: tk.Event | None,
+    ) -> None:
+        item_id = None
+        if event is not None and hasattr(event, "y"):
+            identified = tree.identify_row(event.y)
+            if identified:
+                item_id = identified
+                tree.selection_set(identified)
+
+        if item_id is None:
+            selection = tree.selection()
+            if not selection:
+                return
+            item_id = selection[0]
+
+        row_text = tree.set(item_id, "_row")
+        if not row_text:
+            return
+
+        row = int(row_text)
+        record = next((rec for rec in records if rec.row == row), None)
+        if record is None:
+            return
+
+        self._open_detail_editor(record)
+
+    def _open_detail_editor(self, record: ApplicationRecord) -> None:
+        if self.detail_editor_window is not None and self.detail_editor_window.winfo_exists():
+            if self.detail_editor_record_row == record.row:
+                self.detail_editor_window.lift()
+                self.detail_editor_window.focus_force()
+                return
+            if not self._confirm_close_detail_editor():
+                return
+            self._destroy_detail_editor_window()
+
+        self.detail_editor_window = tk.Toplevel(self.root)
+        self.detail_editor_title_base = f"Bewerbung bearbeiten – {record.bewerbungs_id or f'Zeile {record.row}'}"
+        self.detail_editor_window.title(self.detail_editor_title_base)
+        self.detail_editor_window.geometry("860x760")
+        self.detail_editor_window.minsize(760, 620)
+        self.detail_editor_window.transient(self.root)
+        self.detail_editor_window.grab_set()
+        self.detail_editor_window.protocol("WM_DELETE_WINDOW", self._handle_detail_editor_close_request)
+
+        container = ttk.Frame(self.detail_editor_window, padding=12)
+        container.pack(fill="both", expand=True)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(2, weight=1)
+
+        ttk.Label(
+            container,
+            text="Detailansicht – alle Felder der Bewerbungsübersicht",
+            font=("Segoe UI", 11, "bold"),
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        self.detail_editor_status_label = ttk.Label(container, text="Keine ungespeicherten Änderungen", foreground="#2e7d32")
+        self.detail_editor_status_label.grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        canvas = tk.Canvas(container, highlightthickness=0)
+        canvas.grid(row=2, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollbar.grid(row=2, column=1, sticky="ns")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        form_frame = ttk.Frame(canvas, padding=(0, 0, 8, 0))
+        form_frame.columnconfigure(1, weight=1)
+        canvas_window = canvas.create_window((0, 0), window=form_frame, anchor="nw")
+
+        def _sync_form_width(_event: tk.Event) -> None:
+            canvas.itemconfigure(canvas_window, width=_event.width)
+
+        def _sync_scroll_region(_event: tk.Event | None = None) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        canvas.bind("<Configure>", _sync_form_width)
+        form_frame.bind("<Configure>", _sync_scroll_region)
+
+        self.detail_editor_vars = {}
+        self.detail_editor_widgets = {}
+        self.detail_editor_initial_values = self._record_to_editor_values(record)
+        self.detail_editor_record_row = record.row
+        self.detail_editor_dirty = False
+        self._refresh_detail_editor_title()
+
+        labels = {
+            "bewerbungs_id": "Bewerbungs-ID",
+            "unternehmen": "Unternehmen",
+            "ort": "Ort",
+            "position": "Position",
+            "referenznummer": "Referenznummer",
+            "ansprechpartner": "Ansprechpartner",
+            "kontakt": "Kontakt",
+            "quelle": "Quelle",
+            "art_bewerbung": "Art der Bewerbung",
+            "datum_bewerbung": "Datum Bewerbung",
+            "unterlagen": "Unterlagen",
+            "status": "Status",
+            "status_datum": "Status-Datum",
+            "letzte_kontaktaufnahme": "Letzte Kontaktaufnahme",
+            "art_kontaktaufnahme": "Art der Kontaktaufnahme",
+            "ergebnis_nachfrage": "Ergebnis Nachfrage",
+            "naechster_schritt": "Nächster Schritt",
+            "erinnerungsdatum": "Erinnerungsdatum",
+            "prioritaet": "Priorität",
+            "endergebnis": "Endergebnis",
+            "notizen": "Notizen",
+            "heute_erledigen": "Heute erledigen",
+        }
+
+        lookup_values: dict[str, list[str]] = {
+            "unterlagen": self.lookups.unterlagen,
+            "art_bewerbung": self.lookups.art_bewerbung,
+            "status": self.lookups.status,
+            "art_kontaktaufnahme": self.lookups.art_kontaktaufnahme,
+            "naechster_schritt": [""] + self.lookups.naechster_schritt,
+            "prioritaet": self.lookups.prioritaet,
+            "endergebnis": [""] + self.lookups.endergebnis,
+            "quelle": self.lookups.quelle,
+            "heute_erledigen": ["", "ja"],
+        }
+        date_fields = {"datum_bewerbung", "status_datum", "letzte_kontaktaufnahme", "erinnerungsdatum"}
+        calculated_fields = {"bewerbungs_id", "erinnerungsdatum", "heute_erledigen"}
+
+        for row_index, field in enumerate(FIELD_ORDER.keys()):
+            ttk.Label(form_frame, text=labels.get(field, field)).grid(
+                row=row_index,
+                column=0,
+                sticky="nw",
+                padx=(0, 12),
+                pady=5,
+            )
+
+            var = tk.StringVar(value=self.detail_editor_initial_values.get(field, ""))
+            self.detail_editor_vars[field] = var
+
+            if field in date_fields:
+                widget = self._build_date_input_with_callback(
+                    parent=form_frame,
+                    var=var,
+                    on_select=lambda selected_date, target_var=var: target_var.set(selected_date.strftime("%d.%m.%Y")),
+                )
+                widget.grid(row=row_index, column=1, sticky="w", pady=5)
+            elif field in lookup_values:
+                widget = ttk.Combobox(
+                    form_frame,
+                    textvariable=var,
+                    values=lookup_values[field],
+                    state="readonly",
+                    width=52,
+                )
+                widget.grid(row=row_index, column=1, sticky="ew", pady=5)
+            else:
+                widget_state = "readonly" if field in calculated_fields else "normal"
+                widget = ttk.Entry(form_frame, textvariable=var, width=55, state=widget_state)
+                widget.grid(row=row_index, column=1, sticky="ew", pady=5)
+
+            self.detail_editor_widgets[field] = widget
+            if field not in calculated_fields:
+                var.trace_add("write", lambda *_args: self._update_detail_editor_dirty_state())
+
+        hint = ttk.Label(
+            form_frame,
+            text="Hinweis: Bewerbungs-ID, Erinnerungsdatum und 'Heute erledigen' werden weiterhin automatisch aus Excel-Logik berechnet.",
+            foreground="#666666",
+        )
+        hint.grid(row=len(FIELD_ORDER) + 1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+
+        footer = ttk.Frame(container)
+        footer.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        ttk.Button(footer, text="Speichern", command=self._save_detail_editor_changes, width=16).pack(
+            side="left", padx=(0, 8)
+        )
+        ttk.Button(footer, text="Abbrechen", command=self._handle_detail_editor_close_request, width=16).pack(side="left")
+
+        _sync_scroll_region()
+
+    def _record_to_editor_values(self, record: ApplicationRecord) -> dict[str, str]:
+        values: dict[str, str] = {}
+        for field in FIELD_ORDER.keys():
+            raw = getattr(record, field)
+            if isinstance(raw, date):
+                values[field] = raw.strftime("%d.%m.%Y")
+            else:
+                values[field] = str(raw or "")
+        return values
+
+    def _update_detail_editor_dirty_state(self) -> None:
+        was_dirty = self.detail_editor_dirty
+        current_values = {field: var.get().strip() for field, var in self.detail_editor_vars.items()}
+        self.detail_editor_dirty = any(
+            current_values.get(field, "") != self.detail_editor_initial_values.get(field, "")
+            for field in FIELD_ORDER.keys()
+        )
+        self._refresh_detail_editor_title()
+        if not was_dirty and self.detail_editor_dirty:
+            self._blink_detail_editor_status_once()
+
+    def _blink_detail_editor_status_once(self) -> None:
+        if self.detail_editor_status_label is None or not self.detail_editor_status_label.winfo_exists():
+            return
+
+        def _set_color_if_still_dirty(color: str) -> None:
+            if self.detail_editor_status_label is None or not self.detail_editor_status_label.winfo_exists():
+                return
+            if not self.detail_editor_dirty:
+                return
+            self.detail_editor_status_label.configure(foreground=color)
+
+        _set_color_if_still_dirty("#d84315")
+        self.root.after(130, lambda: _set_color_if_still_dirty("#b26a00"))
+        self.root.after(260, lambda: _set_color_if_still_dirty("#d84315"))
+        self.root.after(390, lambda: _set_color_if_still_dirty("#b26a00"))
+
+    def _refresh_detail_editor_title(self) -> None:
+        if self.detail_editor_window is None or not self.detail_editor_window.winfo_exists():
+            return
+        if self.detail_editor_dirty:
+            self.detail_editor_window.title(f"* {self.detail_editor_title_base}")
+            if self.detail_editor_status_label is not None and self.detail_editor_status_label.winfo_exists():
+                self.detail_editor_status_label.configure(
+                    text="Ungespeicherte Änderungen",
+                    foreground="#b26a00",
+                )
+            return
+        self.detail_editor_window.title(self.detail_editor_title_base)
+        if self.detail_editor_status_label is not None and self.detail_editor_status_label.winfo_exists():
+            self.detail_editor_status_label.configure(
+                text="Keine ungespeicherten Änderungen",
+                foreground="#2e7d32",
+            )
+
+    def _save_detail_editor_changes(self) -> bool:
+        if self.detail_editor_window is None or not self.detail_editor_window.winfo_exists():
+            return False
+        if self.detail_editor_record_row is None:
+            return False
+
+        if not messagebox.askyesno(
+            "Änderungen speichern",
+            "Sollen die Änderungen gespeichert werden?",
+            parent=self.detail_editor_window,
+        ):
+            return False
+
+        date_fields = {"datum_bewerbung", "status_datum", "letzte_kontaktaufnahme", "erinnerungsdatum"}
+        updates: dict[str, str | date] = {}
+
+        for field in FIELD_ORDER.keys():
+            value = self.detail_editor_vars[field].get().strip()
+            if field in date_fields:
+                if not value:
+                    updates[field] = ""
+                    continue
+                parsed_date = as_date(value)
+                if parsed_date is None:
+                    messagebox.showwarning(
+                        "Ungültiges Datum",
+                        f"Feld '{field}' enthält kein gültiges Datum (TT.MM.JJJJ).",
+                        parent=self.detail_editor_window,
+                    )
+                    return False
+                updates[field] = parsed_date
+            else:
+                updates[field] = value
+
+        self.repo.update_record(row=self.detail_editor_record_row, updates=updates)
+        self.refresh_data()
+        messagebox.showinfo("Gespeichert", "Die Änderungen wurden gespeichert.", parent=self.detail_editor_window)
+
+        self.detail_editor_initial_values = {field: var.get().strip() for field, var in self.detail_editor_vars.items()}
+        self.detail_editor_dirty = False
+        self._refresh_detail_editor_title()
+        return True
+
+    def _confirm_close_detail_editor(self) -> bool:
+        if self.detail_editor_window is None or not self.detail_editor_window.winfo_exists():
+            return True
+
+        self._update_detail_editor_dirty_state()
+        if not self.detail_editor_dirty:
+            return True
+
+        answer = messagebox.askyesnocancel(
+            "Ungespeicherte Änderungen",
+            "Es gibt ungespeicherte Änderungen. Soll vor dem Schließen gespeichert werden?",
+            parent=self.detail_editor_window,
+        )
+        if answer is None:
+            return False
+        if answer:
+            return self._save_detail_editor_changes()
+        return True
+
+    def _handle_detail_editor_close_request(self) -> None:
+        if not self._confirm_close_detail_editor():
+            return
+        self._destroy_detail_editor_window()
+
+    def _destroy_detail_editor_window(self) -> None:
+        if self.detail_editor_window is not None and self.detail_editor_window.winfo_exists():
+            self.detail_editor_window.grab_release()
+            self.detail_editor_window.destroy()
+        self.detail_editor_window = None
+        self.detail_editor_vars = {}
+        self.detail_editor_widgets = {}
+        self.detail_editor_initial_values = {}
+        self.detail_editor_record_row = None
+        self.detail_editor_dirty = False
+        self.detail_editor_title_base = ""
+        self.detail_editor_status_label = None
 
     def _schedule_archive_filter_render(self) -> None:
         if self.archive_filter_after_id is not None:
@@ -1317,6 +1639,9 @@ class BewerbungsverwaltungApp:
         for item in self.archive_tree.get_children():
             self.archive_tree.delete(item)
 
+        self.archive_tree["displaycolumns"] = ("id", "unternehmen", "position", "status", "endergebnis", "status_datum")
+        self.archive_tree["columns"] = ("id", "unternehmen", "position", "status", "endergebnis", "status_datum", "_row")
+
         filter_text = self.archive_filter_var.get().strip().lower()
         records = self.archive_records
         if filter_text:
@@ -1354,6 +1679,7 @@ class BewerbungsverwaltungApp:
                     rec.status,
                     rec.endergebnis,
                     rec.status_datum.strftime("%d.%m.%Y") if rec.status_datum else "",
+                    rec.row,
                 ),
             )
 

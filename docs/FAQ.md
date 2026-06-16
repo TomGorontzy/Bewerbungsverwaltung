@@ -15,6 +15,7 @@
 Die Anwendung unterstützt die Pflege von Bewerbungsaktivitäten in drei Bereichen:
 
 - **Neue Bewerbungen**
+- **Laufende Bewerbungen**
 - **Nachzufassende Bewerbungen**
 - **Erledigte Bewerbungen (Archiv)**
 
@@ -82,6 +83,11 @@ Bitte auf `Daten neu laden` klicken, um die Ansicht in der GUI zu aktualisieren.
 
 ### Warum taucht ein Datensatz nicht in „Nachzufassende Bewerbungen“ auf?
 Die Anzeige basiert auf Fälligkeitslogik (z. B. Erinnerungsdatum, Status-Alter, „Heute erledigen?“). Nicht-fällige Einträge erscheinen dort nicht.
+
+### Kann ich einen Datensatz vollständig bearbeiten?
+Ja. In den Listen `Laufende Bewerbungen`, `Nachzufassende Bewerbungen` und `Erledigte Bewerbungen (Archiv)` öffnet ein Doppelklick ein Detailfenster mit allen Feldern aus der Excel-Übersicht.
+
+Beim Schließen (Button `Abbrechen` oder `X`) fragt die Anwendung bei ungespeicherten Änderungen nach, ob gespeichert oder verworfen werden soll.
 
 Hinweis für die direkte Bearbeitung in Excel:
 

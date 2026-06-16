@@ -94,11 +94,15 @@ Archiviert (in GUI-Sicht), wenn:
 ## GUI-Besonderheiten
 
 - `ttk.Notebook` mit `clam`-Theme für reproduzierbares Tab-Styling unter Windows.
+- Zusätzlicher Tab `Laufende Bewerbungen` mit eigener Filter-/Sortier-/Update-Logik.
 - Follow-up- und Archiv-Listen mit horizontalem + vertikalem Scrollbar-Setup.
 - Filter mit Debounce.
 - Sortierung pro Spalte.
 - Farbliche Überfälligkeitsstufen in Follow-up-Listenzeilen.
 - Legende als Statusleiste im Follow-up-Tab.
+- Doppelklick auf Einträge in Laufend/Nachzufassen/Archiv öffnet einen Detail-Editor (`Toplevel`) mit allen Feldern aus `Bewerbungsübersicht`.
+- Detail-Editor mit Dirty-Tracking inkl. visueller Anzeige (`*` im Fenstertitel, Statuslabel im Fenster, kurzer Hinweis-Blink beim ersten Wechsel auf „ungespeichert“).
+- Schließen-Logik im Detail-Editor über `askyesnocancel` (Speichern / Verwerfen / Abbrechen) inklusive `WM_DELETE_WINDOW`-Handling.
 - Katalogverwaltung für `Nächster Schritt` (GUI-Dialog, Speicherung in Excel).
 - Header-Schaltflächen für `Schnellstart`, `Anwender-Doku` und `Technik-Doku` öffnen direkt die erzeugten PDFs aus `docs/pdf/`.
 
